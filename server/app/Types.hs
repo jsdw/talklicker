@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric, GeneralizedNewtypeDeriving #-}
 
-module Types (User(..), Entry(..), EntryType(..), Day(..), Everything(..), AppState(..)) where
+module Types (User(..), Entry(..), EntryType(..), Day(..), Everything(..)) where
 
 import Data.Aeson (ToJSON, FromJSON)
 import GHC.Generics (Generic)
@@ -65,9 +65,3 @@ data Everything = Everything
 instance ToJSON Everything
 instance FromJSON Everything
 
--- this is all of our app state. It's available to
--- our various API calls.
-data AppState = AppState
-    { database :: Database Everything
-    , sessions :: MVar (Map String String)
-    }
