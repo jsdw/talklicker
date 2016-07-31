@@ -16,18 +16,18 @@ empty :: MonadIO m => m (Sessions a)
 empty = liftIO $ newMVar Map.empty >>= return . Sessions
 
 exists :: MonadIO m => Id -> Sessions a -> m Bool
-exists id (Sessions m) = liftIO $ readMVar m >>= return . Map.member id
+exists sessId (Sessions m) = liftIO $ readMVar m >>= return . Map.member sessId
 
 get :: MonadIO m => Id -> Sessions a -> m (Maybe a)
-get id (Sessions m) = liftIO $ readMVar m >>= return . Map.lookup id
+get sessId (Sessions m) = liftIO $ readMVar m >>= return . Map.lookup sessId
 
 remove :: MonadIO m => Id -> Sessions a -> m ()
-remove id (Sessions m) = liftIO $ modifyMVar_ m $ \map -> return (Map.delete id map)
+remove sessId (Sessions m) = liftIO $ modifyMVar_ m $ \sessMap -> return (Map.delete sessId sessMap)
 
 create :: MonadIO m => a -> Sessions a -> m Id
-create a (Sessions m) = liftIO $ modifyMVar m $ \map -> do
-    id <- generateSessionId
-    return (Map.insert id a map, id)
+create a (Sessions m) = liftIO $ modifyMVar m $ \sessMap -> do
+    sessId <- generateSessionId
+    return (Map.insert sessId a sessMap, sessId)
 
 -- generate a session ID frm alphanumeric chars
 generateSessionId :: MonadRandom m => m Id

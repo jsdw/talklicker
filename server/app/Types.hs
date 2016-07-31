@@ -4,10 +4,7 @@ module Types (User(..), Entry(..), EntryType(..), Day(..), Everything(..)) where
 
 import Data.Aeson (ToJSON, FromJSON)
 import GHC.Generics (Generic)
-import Control.Concurrent (MVar)
-import Database (Database)
-import Data.Map (Map)
-import Control.Monad.Reader (MonadReader, ReaderT, runReaderT)
+import Data.Default (Default, def)
 
 data Id = Id String
     deriving (Show, Eq, Generic)
@@ -32,6 +29,7 @@ data EntryType
 instance ToJSON EntryType
 instance FromJSON EntryType
 
+
 data Entry = Entry
     { entryId          :: Id
     , entryDuration    :: Int
@@ -46,6 +44,7 @@ data Entry = Entry
 instance ToJSON Entry
 instance FromJSON Entry
 
+
 data Day = Day
     { dayId     :: Id
     , dayTitle  :: String
@@ -56,6 +55,7 @@ data Day = Day
 instance ToJSON Day
 instance FromJSON Day
 
+
 data Everything = Everything
     { allEntries :: [Entry]
     , allUsers   :: [User]
@@ -64,4 +64,8 @@ data Everything = Everything
 
 instance ToJSON Everything
 instance FromJSON Everything
+
+instance Default Everything where
+    def = Everything [] [] []
+
 
