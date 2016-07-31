@@ -11,6 +11,8 @@ import Sessions
 import Servant
 import Types
 
+type UserSessions = Sessions String
+type UserSession = Session String
 
 -- the monad our API will run under.
 -- this makes our AppState readable anywhere in the app
@@ -21,8 +23,8 @@ newtype Application a = Application { unApp :: ReaderT AppState Handler a }
 -- this is all of our app state. It's available to
 -- our various API calls.
 data AppState = AppState
-    { database :: Database Everything
-    , sessions :: Sessions String
+    { appDatabase :: Database Everything
+    , appSessions :: UserSessions
     }
 
 -- describe how to transform our Application into a servant Handler.

@@ -30,6 +30,7 @@ executable talklicker-exe
                      , servant-server
                      , warp
                      , bytestring
+                     , transformers
                      , mtl
                      , cryptonite
                      , bytestring
