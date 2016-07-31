@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric, GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
-module Types (User(..), Entry(..), EntryType(..), Day(..), Everything(..), LoginInfo(..)) where
+module Types (ToJSON(..), FromJSON(..), User(..), Entry(..), EntryType(..), Day(..), Everything(..), fromPrefix, toPrefix) where
 
 import qualified Data.Aeson as Aeson
 import qualified Data.Char as Char
@@ -20,11 +20,19 @@ data Id = Id String
 instance ToJSON Id
 instance FromJSON Id
 
+data UserType
+    = Admin
+    | NormalUser
+    deriving (Eq, Show, Generic)
+
+instance ToJSON UserType
+instance FromJSON UserType
 
 data User = User
-    { userName :: String
+    { userName     :: String
     , userFullName :: String
     , userPassHash :: String
+    , userType     :: UserType
     } deriving (Eq, Show, Generic)
 
 instance ToJSON User where toJSON = toPrefix "user"
@@ -79,18 +87,6 @@ instance Default Everything where
     def = Everything [] [] []
 
 --
--- Types for API request/responses.
---
-
-data LoginInfo = LoginInfo
-    { loginName :: String
-    , loginPass :: String
-    } deriving (Eq, Show, Generic)
-
-instance ToJSON LoginInfo where toJSON = toPrefix "login"
-instance FromJSON LoginInfo where parseJSON = fromPrefix "login"
-
---
 -- handy JSON generic to/from funcs that strip or add prefixes, fixing
 -- case to camelcase:
 --
@@ -98,8 +94,8 @@ fromPrefix prefix = Aeson.genericParseJSON (Aeson.defaultOptions { fieldLabelMod
 toPrefix prefix = Aeson.genericToJSON (Aeson.defaultOptions { fieldLabelModifier = stripPrefix prefix })
 
 stripPrefix :: String -> String -> String
-stripPrefix prefix s = case removePrefix prefix s of
-    Nothing -> s
+stripPrefix prefix fieldName = case removePrefix prefix fieldName of
+    Nothing -> fieldName
     Just [] -> []
     Just (s:ss) -> Char.toLower s : ss
 

@@ -1,4 +1,5 @@
-{-# LANGUAGE RecordWildCards, DataKinds, TypeOperators, FlexibleContexts, GeneralizedNewtypeDeriving, TypeFamilies #-}
+{-# LANGUAGE DeriveGeneric, RecordWildCards, DataKinds, TypeOperators, FlexibleContexts, GeneralizedNewtypeDeriving, TypeFamilies #-}
+{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
 module Routes (routes, Routes) where
 
@@ -6,34 +7,57 @@ import qualified Data.List as List
 import Control.Monad.Except (MonadError)
 import Control.Monad.Reader (ask)
 import qualified Database
-import Database (Database)
+-- import Database (Database)
 import qualified Sessions
 import Sessions (Session(Session))
+import GHC.Generics (Generic)
+import Crypto.KDF.BCrypt (validatePassword)
+import qualified Data.ByteString.Char8 as Bytes
 
 import Types
 import Servant
 import Application
 
-type AuthorizedUser = AuthProtect "session"
+type HasSession = AuthProtect "session"
 
-type Routes = Login :<|> Logout :<|> GetCurrentUser :<|> GetEntries :<|> GetUsers
-routes = login :<|> logout :<|> getCurrentUser :<|> getEntries :<|> getUsers
+type Routes = Login :<|> Logout :<|> GetCurrentUser :<|> GetEntries :<|> GetUsers :<|> GetDays
+routes = login :<|> logout :<|> getCurrentUser :<|> getEntries :<|> getUsers :<|> getDays
 
-type Login = "login" :> ReqBody '[JSON] LoginInfo :> Post '[JSON] String
+--
+-- LOGIN
+--
 
-login :: LoginInfo -> Application String
-login LoginInfo{..} = do
+type Login = "login" :> ReqBody '[JSON] LoginInput :> Post '[JSON] String
+
+login :: LoginInput -> Application String
+login LoginInput{..} = do
 
     sess <- getSessions
     users <- fmap allUsers getEverything
 
-    throwIf (not $ List.any (\u -> userName u == loginName) users) err500
+    let mUser = List.find (\u -> userName u == loginName) users
+    let isValidPass = case mUser of
+            Nothing -> False
+            Just u -> validatePassword (Bytes.pack loginPass) (Bytes.pack $ userPassHash u)
+
+    throwIf (not isValidPass) err500
 
     Session sessId _ <- Sessions.create (loginName) sess
     return sessId
 
+data LoginInput = LoginInput
+    { loginName :: String
+    , loginPass :: String
+    } deriving (Eq, Show, Generic)
 
-type Logout = AuthorizedUser :> "logout" :> Post '[JSON] ()
+instance ToJSON LoginInput where toJSON = toPrefix "login"
+instance FromJSON LoginInput where parseJSON = fromPrefix "login"
+
+--
+-- LOGOUT
+--
+
+type Logout = HasSession :> "logout" :> Post '[JSON] ()
 
 logout :: UserSession -> Application ()
 logout session = do
@@ -41,10 +65,13 @@ logout session = do
     Sessions.removeSession session sessions
     return ()
 
+--
+-- GET CURRENT USER
+--
 
-type GetCurrentUser = AuthorizedUser :> "user" :> Get '[JSON] User
+type GetCurrentUser = HasSession :> "users" :> "current" :> Get '[JSON] UserOutput
 
-getCurrentUser :: UserSession -> Application User
+getCurrentUser :: UserSession -> Application UserOutput
 getCurrentUser (Session _ username) = do
 
     users <- fmap allUsers getEverything
@@ -52,18 +79,46 @@ getCurrentUser (Session _ username) = do
 
     case mUser of
         Nothing -> throwError $ err500 {errReasonPhrase = "user not found; how odd!"}
+        Just u -> return $ toUserOutput u
 
+data UserOutput = UserOutput
+    { _uoUserName :: String
+    , _uoUserFullName :: String
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON UserOutput where toJSON = toPrefix "_uoUser"
+instance FromJSON UserOutput where parseJSON = fromPrefix "_uoUser"
+
+toUserOutput :: User -> UserOutput
+toUserOutput User{..} = UserOutput userName userFullName
+
+--
+-- GET ALL ENTRIES
+--
 
 type GetEntries = "entries" :> Get '[JSON] [Entry]
 
 getEntries :: Application [Entry]
 getEntries = fmap allEntries getEverything
 
+--
+-- GET USER INFO
+--
 
-type GetUsers = "users" :> Get '[JSON] [User]
+type GetUsers = "users" :> Get '[JSON] [UserOutput]
 
-getUsers :: Application [User]
-getUsers = fmap allUsers getEverything
+getUsers :: Application [UserOutput]
+getUsers = fmap (fmap toUserOutput . allUsers) getEverything
+
+--
+-- GET DAYS
+--
+
+type GetDays = "days" :> Get '[JSON] [Day]
+
+getDays :: Application [Day]
+getDays = fmap allDays getEverything
+
 
 
 --
