@@ -18,7 +18,8 @@ import Types
 import Servant
 import Application
 
-type HasSession = AuthProtect "session"
+type HasSession = AuthProtect "hasSession"
+type IsAdmin = AuthProtect "isAdmin"
 
 type Routes = Login :<|> Logout :<|> GetCurrentUser :<|> GetEntries :<|> GetUsers :<|> GetDays
 routes = login :<|> logout :<|> getCurrentUser :<|> getEntries :<|> getUsers :<|> getDays
@@ -62,7 +63,7 @@ type Logout = HasSession :> "logout" :> Post '[JSON] ()
 logout :: UserSession -> Application ()
 logout session = do
     sessions <- getSessions
-    Sessions.removeSession session sessions
+    Sessions.remove session sessions
     return ()
 
 --

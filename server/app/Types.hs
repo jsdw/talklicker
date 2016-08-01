@@ -1,7 +1,19 @@
 {-# LANGUAGE DeriveGeneric, GeneralizedNewtypeDeriving, FlexibleContexts #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
-module Types (ToJSON(..), FromJSON(..), User(..), Entry(..), EntryType(..), Day(..), Everything(..), fromPrefix, toPrefix) where
+module Types (
+    ToJSON(..),
+    FromJSON(..),
+
+    User(..),
+    UserType(..),
+    Entry(..),
+    EntryType(..),
+    Day(..),
+    Everything(..),
+
+    fromPrefix,
+    toPrefix) where
 
 import qualified Data.Aeson as Aeson
 import qualified Data.Char as Char
