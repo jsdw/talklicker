@@ -72,14 +72,7 @@ logout session = do
 type GetCurrentUser = HasSession :> "users" :> "current" :> Get '[JSON] UserOutput
 
 getCurrentUser :: UserSession -> Application UserOutput
-getCurrentUser (Session _ username) = do
-
-    users <- fmap allUsers getEverything
-    let mUser = List.find (\u -> userName u == username) users
-
-    case mUser of
-        Nothing -> throwError $ err500 {errReasonPhrase = "user not found; how odd!"}
-        Just u -> return $ toUserOutput u
+getCurrentUser (Session _ user) = return (toUserOutput user)
 
 data UserOutput = UserOutput
     { _uoUserName :: String

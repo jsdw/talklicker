@@ -12,7 +12,7 @@ import Servant
 import Types
 
 type UserSessions = Sessions String
-type UserSession = Session String
+type UserSession = Session User
 
 -- the monad our API will run under.
 -- this makes our AppState readable anywhere in the app

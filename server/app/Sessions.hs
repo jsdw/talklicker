@@ -23,7 +23,7 @@ exists sessId (Sessions m) = liftIO $ readMVar m >>= return . Map.member sessId
 get :: MonadIO m => Id -> Sessions a -> m (Maybe (Session a))
 get sessId (Sessions m) = liftIO $ readMVar m >>= return . fmap (Session sessId) . Map.lookup sessId
 
-removeSession :: MonadIO m => Session a -> Sessions a -> m ()
+removeSession :: MonadIO m => Session a -> Sessions b -> m ()
 removeSession (Session id _) ss = remove id ss
 
 remove :: MonadIO m => Id -> Sessions a -> m ()

@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveGeneric, GeneralizedNewtypeDeriving, FlexibleContexts #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
 module Types (ToJSON(..), FromJSON(..), User(..), Entry(..), EntryType(..), Day(..), Everything(..), fromPrefix, toPrefix) where
@@ -87,7 +87,7 @@ instance Default Everything where
     def = Everything [] [] []
 
 --
--- handy JSON generic to/from funcs that strip or add prefixes, fixing
+-- handy JSON generic to/from funcs that strip prefixes, fixing
 -- case to camelcase:
 --
 fromPrefix prefix = Aeson.genericParseJSON (Aeson.defaultOptions { fieldLabelModifier = stripPrefix prefix })

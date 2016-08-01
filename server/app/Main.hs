@@ -17,6 +17,7 @@ import qualified Sessions as Sessions
 import Servant
 import Routes
 import Application
+import Types
 
 
 main :: IO ()
@@ -33,22 +34,22 @@ main = do
 
 -- our auth middleware. add the (AuthProtect "session") combinator to
 -- a route to protect it with this and prevent access if need be.
-authHandler :: AppState -> Request -> Handler (Sessions.Session String)
-authHandler (AppState _db sessions) req = do
+authHandler :: AppState -> Request -> Handler (Sessions.Session User)
+authHandler (AppState db sessions) req = do
 
     mSess <- runMaybeT $ do
-        sessId   <- liftMaybe $ List.lookup "Talklicker-Session" (requestHeaders req)
-        sess     <- liftMaybe =<< Sessions.get (Bytes.unpack sessId) sessions
-        -- theDb    <- Database.read db
-        -- liftMaybe $ List.find (== Sessions.content sess) (allUsers theDb)
-        return sess
+        sessId  <- liftMaybe $ List.lookup "Talklicker-Session" (requestHeaders req)
+        sess    <- liftMaybe =<< Sessions.get (Bytes.unpack sessId) sessions
+        theDb   <- Database.read db
+        user    <- liftMaybe $ List.find (\u -> userName u == Sessions.content sess) (allUsers theDb)
+        return (Sessions.Session (Sessions.id sess) user)
 
     case mSess of
         Just sess -> return sess
         Nothing -> throwError err401
 
 -- what's returned from our (AuthProtect "session") combinator?
-type instance AuthServerData (AuthProtect "session") = Sessions.Session String
+type instance AuthServerData (AuthProtect "session") = Sessions.Session User
 
 liftMaybe :: (MonadPlus m) => Maybe a -> m a
 liftMaybe = maybe mzero return
