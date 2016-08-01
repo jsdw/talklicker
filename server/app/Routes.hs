@@ -9,7 +9,7 @@ import Control.Monad.Reader (ask)
 import qualified Database
 -- import Database (Database)
 import qualified Sessions
-import Sessions (Session(Session))
+import Sessions (Sessions)
 import GHC.Generics (Generic)
 import Crypto.KDF.BCrypt (validatePassword)
 import qualified Data.ByteString.Char8 as Bytes
@@ -17,9 +17,10 @@ import qualified Data.ByteString.Char8 as Bytes
 import Types
 import Servant
 import Application
+import Middleware
 
-type HasSession = AuthProtect "hasSession"
-type IsAdmin = AuthProtect "isAdmin"
+type UserSessions = Sessions String
+type UserSession = Session User
 
 type Routes = Login :<|> Logout :<|> GetCurrentUser :<|> GetEntries :<|> GetUsers :<|> GetDays
 routes = login :<|> logout :<|> getCurrentUser :<|> getEntries :<|> getUsers :<|> getDays
@@ -43,7 +44,7 @@ login LoginInput{..} = do
 
     throwIf (not isValidPass) err500
 
-    Session sessId _ <- Sessions.create (loginName) sess
+    sessId <- Sessions.create (loginName) sess
     return sessId
 
 data LoginInput = LoginInput
@@ -61,9 +62,9 @@ instance FromJSON LoginInput where parseJSON = fromPrefix "login"
 type Logout = HasSession :> "logout" :> Post '[JSON] ()
 
 logout :: UserSession -> Application ()
-logout session = do
+logout (Session sessId _) = do
     sessions <- getSessions
-    Sessions.remove session sessions
+    Sessions.remove sessId sessions
     return ()
 
 --
