@@ -1,6 +1,17 @@
 {-# LANGUAGE DataKinds, TypeFamilies #-}
 
-module Middleware (hasSessionHandler, Session(..), HasSession, isAdminHandler, AdminSession(..), IsAdmin) where
+module Middleware (
+
+    maybeHasSessionHandler,
+    Session(..),
+    MaybeHasSession,
+
+    hasSessionHandler,
+    HasSession,
+
+    isAdminHandler,
+    AdminSession(..),
+    IsAdmin ) where
 
 import Servant.Server.Experimental.Auth (mkAuthHandler, AuthServerData, AuthHandler)
 import Network.Wai (Request, requestHeaders)
@@ -17,18 +28,18 @@ import Types
 import Application
 
 --
--- our auth middleware. add the (AuthProtect "session") combinator to
--- a route to protect it with this and prevent access if need be.
+-- Does the user have a session? allows you to the route regardless, but passes
+-- a maybe session so that we can then check it.
 --
 
-hasSessionHandler :: AppState -> AuthHandler Request (Session User)
-hasSessionHandler = mkAuthHandler . hasSession
+maybeHasSessionHandler :: AppState -> AuthHandler Request (Maybe (Session User))
+maybeHasSessionHandler = mkAuthHandler . maybeHasSession
 
 data Session a = Session Sessions.Id a
-type HasSession = AuthProtect "hasSession"
+type MaybeHasSession = AuthProtect "maybeHasSession"
 
-hasSession :: AppState -> Request -> Handler (Session User)
-hasSession (AppState db sessions) req = do
+maybeHasSession :: AppState -> Request -> Handler (Maybe (Session User))
+maybeHasSession (AppState db sessions) req = do
 
     mSess <- runMaybeT $ do
         sessId'  <- liftMaybe $ List.lookup "Talklicker-Session" (requestHeaders req)
@@ -39,11 +50,29 @@ hasSession (AppState db sessions) req = do
         return (Session sessId user)
 
     case mSess of
+        Just sess -> return (Just sess)
+        Nothing -> return Nothing
+
+type instance AuthServerData (AuthProtect "maybeHasSession") = Session (Maybe (Session User))
+
+--
+-- A stricter version of the above - if the usr doesn't have a session the route will fail.
+--
+
+hasSessionHandler :: AppState -> AuthHandler Request (Session User)
+hasSessionHandler = mkAuthHandler . hasSession
+
+type HasSession = AuthProtect "hasSession"
+
+hasSession :: AppState -> Request -> Handler (Session User)
+hasSession appState req = do
+
+    mSess <- maybeHasSession appState req
+    case mSess of
         Just sess -> return sess
         Nothing -> throwError err401
 
 type instance AuthServerData (AuthProtect "hasSession") = Session User
-
 
 --
 -- this middleware additionally checks whether the user session
