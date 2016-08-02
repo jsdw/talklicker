@@ -5,6 +5,7 @@ module Types (
     ToJSON(..),
     FromJSON(..),
 
+    Id(..),
     User(..),
     UserType(..),
     Entry(..),

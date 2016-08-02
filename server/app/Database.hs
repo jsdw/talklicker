@@ -1,4 +1,4 @@
-module Database (Database, init, read, modify) where
+module Database (Database, init, read, modify, modify_) where
 
 import Prelude hiding (init, read)
 import Control.Concurrent
@@ -23,11 +23,15 @@ init fileName = liftIO $ do
 read :: MonadIO m => Database a -> m a
 read (Database _ mv) = liftIO $ readMVar mv
 
-modify :: (MonadIO m, ToJSON a) => Database a -> (a -> IO a) -> m (Database a)
-modify db@(Database fileName mv) fn = liftIO $ do
-    modifyMVar_ mv fn
-    writeMVarToFile fileName mv
-    return db
+modify :: (MonadIO m, ToJSON a) => Database a -> (a -> IO (a,b)) -> m b
+modify (Database fileName mv) fn = liftIO $ do
+    modifyMVar mv $ \a -> do
+        out <- fn a
+        writeMVarToFile fileName mv
+        return out
+
+modify_ :: (MonadIO m, ToJSON a) => Database a -> (a -> IO a) -> m ()
+modify_ db fn = modify db (\a -> fn a >>= \newA -> return (newA,()))
 
 --
 -- helpers to read/write to file on mvar init/change

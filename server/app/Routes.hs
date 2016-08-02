@@ -23,9 +23,10 @@ import Middleware
 
 type UserSessions = Sessions String
 type UserSession = Session User
+type AdminUserSession = AdminSession User
 
-type Routes = Login :<|> Logout :<|> GetCurrentUser :<|> GetEntries :<|> GetUsers :<|> GetUser :<|> SetUser :<|> GetDays
-routes      = login :<|> logout :<|> getCurrentUser :<|> getEntries :<|> getUsers :<|> getUser :<|> setUser :<|> getDays
+type Routes = Login :<|> Logout :<|> GetCurrentUser :<|> GetEntries :<|> GetEntry :<|> GetUsers :<|> GetUser :<|> SetUser :<|> GetDays
+routes      = login :<|> logout :<|> getCurrentUser :<|> getEntries :<|> getEntry :<|> getUsers :<|> getUser :<|> setUser :<|> getDays
 
 --
 -- LOGIN
@@ -39,6 +40,7 @@ login LoginInput{..} = do
     sess <- getSessions
     user <- getUserOr loginName (throwError err401)
 
+    -- if pass not set (empty passHash) or pass provided matches passHash, it's valid.
     let isValidPass = if null (userPassHash user) then True
                       else validatePassword (Bytes.pack loginPass) (Bytes.pack $ userPassHash user)
 
@@ -95,13 +97,22 @@ getEntries :: Application [Entry]
 getEntries = fmap allEntries getEverything
 
 --
+-- GET ONE ENTRY
+--
+
+type GetEntry = "entries" :> Capture "entry" Id :> Get '[JSON] Entry
+
+getEntry :: Id -> Application Entry
+getEntry entryId = getEntryOr entryId (throwError err404)
+
+--
 -- GET ALL USER INFO
 --
 
 type GetUsers = "users" :> Get '[JSON] [UserOutput]
 
 getUsers :: Application [UserOutput]
-getUsers = fmap (fmap toUserOutput . allUsers) getEverything
+getUsers = fmap allUsers getEverything >>= return . fmap toUserOutput
 
 --
 -- GET ONE USER INFO
@@ -110,9 +121,7 @@ getUsers = fmap (fmap toUserOutput . allUsers) getEverything
 type GetUser = "users" :> Capture "username" String :> Get '[JSON] UserOutput
 
 getUser :: String -> Application UserOutput
-getUser name = do
-    user <- getUserOr name (throwError err404)
-    return (toUserOutput user)
+getUser name = getUserOr name (throwError err404) >>= return . toUserOutput
 
 --
 -- SET ONE USER INFO
@@ -123,24 +132,28 @@ type SetUser = "users" :> HasSession :> Capture "username" String :> ReqBody '[J
 setUser :: UserSession -> String -> UserInput -> Application UserOutput
 setUser (Session _ sessUser) name input = do
 
-    user <- getUserOr name (throwError err404)
-    throwIf (userName sessUser /= userName user) err401
+    -- we must be an admin or be the user we're editing
+    throwIf (userType sessUser /= Admin && userName sessUser /= name) err401
 
+    -- hash the provided password if necessary
     mHash <- case uiPass input of
         Just pass -> Just <$> liftIO (hashPassword 13 (Bytes.pack pass))
         Nothing -> return Nothing
 
-    let user' = user
+    -- update the user using any details provided
+    let update user = user
           { userFullName = maybe (userFullName user) id (uiFullName input)
           , userPassHash = maybe (userPassHash user) Bytes.unpack mHash
           }
 
-    appState <- ask
-    Database.modify (appDatabase appState) $ \db -> do
-        return db{ allUsers = fmap (\u -> if userName user == userName u then user' else u) (allUsers db) }
+    -- perform our update on the db
+    mUser <- modifyItems allUsers (\d v -> d { allUsers = v }) $ \u ->
+        if name == userName u then Just (update u) else Nothing
 
-    return (toUserOutput user')
-
+    -- err if user was not found else return new details:
+    case mUser of
+        Nothing -> throwError err404
+        Just u -> return (toUserOutput u)
 
 
 data UserInput = UserInput
@@ -148,7 +161,7 @@ data UserInput = UserInput
     , uiPass     :: Maybe String
     } deriving (Show, Eq, Generic)
 
-instance FromJSON UserOutput where parseJSON = fromPrefix "ui"
+instance FromJSON UserInput where parseJSON = fromPrefix "ui"
 
 --
 -- GET DAYS
@@ -159,18 +172,67 @@ type GetDays = "days" :> Get '[JSON] [Day]
 getDays :: Application [Day]
 getDays = fmap allDays getEverything
 
+--
+-- SET DAY
+--
 
+type SetDay = IsAdmin :> "days" :> ReqBody '[JSON] DayInput :> Post '[JSON] Day
+
+setDay :: AdminUserSession -> DayInput -> Application Day
+setDay (AdminSession sessId sessUser) input = do
+
+    let update day = day
+            { dayTitle = maybe (dayTitle day) id (diTitle input)
+            , dayDate = maybe (dayDate day) id (diDate input)
+            , dayEvents = maybe (dayEvents day) id (diEvents input)
+            }
+
+    mDay <- modifyItems allDays (\d v -> d { allDays = v }) $ \day ->
+        if dayId day == diId input then Just (update day) else Nothing
+
+    case mDay of
+        Nothing -> throwError err404
+        Just newDay -> return newDay
+
+data DayInput = DayInput
+    { diId :: Id
+    , diTitle :: Maybe String
+    , diDate :: Maybe Int
+    , diEvents :: Maybe [Id]
+    } deriving (Show, Eq, Generic)
+
+instance FromJSON DayInput where parseJSON = fromPrefix "di"
 
 --
 -- Utility functions:
 --
 
 getUserOr :: String -> Application User -> Application User
-getUserOr name orElse = do
-    users <- fmap allUsers getEverything
-    case List.find (\u -> userName u == name) users of
+getUserOr name = getOr allUsers (\u -> userName u == name)
+
+getDayOr :: Id -> Application Day -> Application Day
+getDayOr dId = getOr allDays (\d -> dayId d == dId)
+
+getEntryOr :: Id -> Application Entry -> Application Entry
+getEntryOr dId = getOr allEntries (\d -> entryId d == dId)
+
+getOr :: (Everything -> [a]) -> (a -> Bool) -> Application a -> Application a
+getOr getListFn compareFn orElse = do
+    users <- fmap getListFn getEverything
+    case List.find compareFn users of
         Nothing -> orElse
         Just u -> return u
+
+modifyItems :: (Everything -> [a]) -> (Everything -> [a] -> Everything) -> (a -> Maybe a) -> Application (Maybe a)
+modifyItems getListFn setListFn modifyFn = do
+    db <- appDatabase <$> ask
+    Database.modify db $ \everything ->
+        let (newItems, mItem) = foldr fn ([], Nothing) $ getListFn everything
+        in return (setListFn everything newItems, mItem)
+  where
+    fn item (items, mItem) = case modifyFn item of
+        Nothing      -> (item : items, mItem)
+        Just newItem -> (newItem : items, Just newItem)
 
 getSessions :: Application UserSessions
 getSessions = ask >>= return . appSessions
