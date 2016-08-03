@@ -29,6 +29,7 @@ executable talklicker-exe
                      , data-default
                      , servant-server
                      , warp
+                     , text
                      , bytestring
                      , transformers
                      , mtl
@@ -36,6 +37,9 @@ executable talklicker-exe
                      , bytestring
                      , containers
                      , wai
+                     , microlens-platform
+                     , microlens-th
+                     , template-haskell
   default-language:    Haskell2010
 
 source-repository head

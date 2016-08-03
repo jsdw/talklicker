@@ -16,6 +16,7 @@ import qualified Database
 -- import Database (Database)
 import qualified Sessions
 
+import Lens.Micro.Platform
 import Types
 import Servant
 import Application
@@ -137,17 +138,17 @@ setUser (Session _ sessUser) name input = do
 
     -- hash the provided password if necessary
     mHash <- case uiPass input of
-        Just pass -> Just <$> liftIO (hashPassword 13 (Bytes.pack pass))
+        Just pass -> Just . Bytes.unpack <$> liftIO (hashPassword 13 (Bytes.pack pass))
         Nothing -> return Nothing
 
-    -- update the user using any details provided
+    -- update the user using any details provided. Leave values
+    -- alone if they are Nothing, alter if Maybe val.
     let update user = user
-          { userFullName = maybe (userFullName user) id (uiFullName input)
-          , userPassHash = maybe (userPassHash user) Bytes.unpack mHash
-          }
+            & userFullNameL ?= uiFullName input
+            & userPassHashL ?= mHash
 
     -- perform our update on the db
-    mUser <- modifyItems allUsers (\d v -> d { allUsers = v }) $ \u ->
+    mUser <- modifyItems allUsersL $ \u ->
         if name == userName u then Just (update u) else Nothing
 
     -- err if user was not found else return new details:
@@ -182,12 +183,11 @@ setDay :: AdminUserSession -> DayInput -> Application Day
 setDay (AdminSession sessId sessUser) input = do
 
     let update day = day
-            { dayTitle = maybe (dayTitle day) id (diTitle input)
-            , dayDate = maybe (dayDate day) id (diDate input)
-            , dayEvents = maybe (dayEvents day) id (diEvents input)
-            }
+            & dayTitleL  ?= diTitle input
+            & dayDateL   ?= diDate input
+            & dayEventsL ?= diEvents input
 
-    mDay <- modifyItems allDays (\d v -> d { allDays = v }) $ \day ->
+    mDay <- modifyItems allDaysL $ \day ->
         if dayId day == diId input then Just (update day) else Nothing
 
     case mDay of
@@ -208,27 +208,34 @@ instance FromJSON DayInput where parseJSON = fromPrefix "di"
 --
 
 getUserOr :: String -> Application User -> Application User
-getUserOr name = getOr allUsers (\u -> userName u == name)
+getUserOr name = getOr allUsersL (\u -> userName u == name)
 
 getDayOr :: Id -> Application Day -> Application Day
-getDayOr dId = getOr allDays (\d -> dayId d == dId)
+getDayOr dId = getOr allDaysL (\d -> dayId d == dId)
 
 getEntryOr :: Id -> Application Entry -> Application Entry
-getEntryOr dId = getOr allEntries (\d -> entryId d == dId)
+getEntryOr dId = getOr allEntriesL (\d -> entryId d == dId)
 
-getOr :: (Everything -> [a]) -> (a -> Bool) -> Application a -> Application a
-getOr getListFn compareFn orElse = do
-    users <- fmap getListFn getEverything
-    case List.find compareFn users of
+getOr :: Lens' Everything [a] -> (a -> Bool) -> Application a -> Application a
+getOr l compareFn orElse = do
+    users <- getEverything
+    case List.find compareFn (users ^. l) of
         Nothing -> orElse
         Just u -> return u
 
-modifyItems :: (Everything -> [a]) -> (Everything -> [a] -> Everything) -> (a -> Maybe a) -> Application (Maybe a)
-modifyItems getListFn setListFn modifyFn = do
+removeItems :: Lens' Everything [a] -> (a -> Bool) -> Application Bool
+removeItems l removeThese = do
     db <- appDatabase <$> ask
     Database.modify db $ \everything ->
-        let (newItems, mItem) = foldr fn ([], Nothing) $ getListFn everything
-        in return (setListFn everything newItems, mItem)
+        let (removed, kept) = List.partition removeThese (view l everything)
+        in return (set l kept everything, not (null removed))
+
+modifyItems :: Lens' Everything [a] -> (a -> Maybe a) -> Application (Maybe a)
+modifyItems l modifyFn = do
+    db <- appDatabase <$> ask
+    Database.modify db $ \everything ->
+        let (newItems, mItem) = foldr fn ([], Nothing) (view l everything)
+        in return (set l newItems everything, mItem)
   where
     fn item (items, mItem) = case modifyFn item of
         Nothing      -> (item : items, mItem)
@@ -242,6 +249,13 @@ getEverything = ask >>= Database.read . appDatabase
 
 throwIf :: MonadError e m => Bool -> e -> m ()
 throwIf b err = if b then throwError err else return ()
+
+-- set the value pointed at by the lens to the provided Maybe a
+-- if it's Just a, or leave the value alone if it's Nothing:
+(?=) :: Lens' a b -> Maybe b -> a -> a
+(?=) l mVal = over l $ \val -> case mVal of
+    Nothing -> val
+    Just v  -> v
 
 --ifMaybe :: Monad m => Maybe a -> (a -> m ()) -> m ()
 --ifMaybe m act = case m of
