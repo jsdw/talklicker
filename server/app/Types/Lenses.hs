@@ -13,3 +13,8 @@ makeLensesL ''User
 makeLensesL ''Entry
 makeLensesL ''Day
 makeLensesL ''Everything
+
+makeLensesL ''UserInput
+makeLensesL ''DayInput
+makeLensesL ''LoginInput
+makeLensesL ''UserOutput

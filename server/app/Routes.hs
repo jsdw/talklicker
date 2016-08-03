@@ -6,7 +6,6 @@ module Routes (routes, Routes) where
 import Control.Monad.Except (MonadError)
 import Control.Monad.Reader (ask)
 import Sessions (Sessions)
-import GHC.Generics (Generic)
 import Control.Monad.Trans (liftIO)
 import Crypto.KDF.BCrypt (validatePassword, hashPassword)
 
@@ -26,8 +25,36 @@ type UserSessions = Sessions String
 type UserSession = Session User
 type AdminUserSession = AdminSession User
 
-type Routes = Login :<|> Logout :<|> GetCurrentUser :<|> GetEntries :<|> GetEntry :<|> GetUsers :<|> GetUser :<|> SetUser :<|> GetDays
-routes      = login :<|> logout :<|> getCurrentUser :<|> getEntries :<|> getEntry :<|> getUsers :<|> getUser :<|> setUser :<|> getDays
+--
+-- Our routing contents table.
+--
+
+type Routes = "core"    :> CoreRoutes
+         :<|> "entries" :> EntryRoutes
+         :<|> "users"   :> UserRoutes
+         :<|> "days"    :> DayRoutes
+
+routes = coreRoutes
+    :<|> entryRoutes
+    :<|> userRoutes
+    :<|> dayRoutes
+
+type CoreRoutes = Login :<|> Logout
+coreRoutes      = login :<|> logout
+
+type EntryRoutes = GetEntries :<|> GetEntry :<|> SetEntry :<|> AddEntry :<|> RemoveEntry
+entryRoutes      = getEntries :<|> getEntry :<|> setEntry :<|> addEntry :<|> removeEntry
+
+type UserRoutes = GetCurrentUser :<|> GetUsers :<|> GetUser :<|> SetUser :<|> AddUser :<|> RemoveUser
+userRoutes      = getCurrentUser :<|> getUsers :<|> getUser :<|> setUser :<|> addUser :<|> removeUser
+
+type DayRoutes = GetDays :<|> GetDay :<|> SetDay :<|> AddDay :<|> RemoveDay
+dayRoutes      = getDays :<|> getDay :<|> setDay :<|> addDay :<|> removeDay
+
+
+-- ############
+-- ### CORE ###
+-- ############
 
 --
 -- LOGIN
@@ -50,13 +77,6 @@ login LoginInput{..} = do
     sessId <- Sessions.create (loginName) sess
     return sessId
 
-data LoginInput = LoginInput
-    { loginName :: String
-    , loginPass :: String
-    } deriving (Eq, Show, Generic)
-
-instance FromJSON LoginInput where parseJSON = fromPrefix "login"
-
 --
 -- LOGOUT
 --
@@ -69,30 +89,16 @@ logout (Session sessId _) = do
     Sessions.remove sessId sessions
     return ()
 
---
--- GET CURRENT USER
---
 
-type GetCurrentUser = HasSession :> "users" :> "current" :> Get '[JSON] UserOutput
-
-getCurrentUser :: UserSession -> Application UserOutput
-getCurrentUser (Session _ user) = return (toUserOutput user)
-
-data UserOutput = UserOutput
-    { _uoUserName :: String
-    , _uoUserFullName :: String
-    } deriving (Eq, Show, Generic)
-
-instance ToJSON UserOutput where toJSON = toPrefix "_uoUser"
-
-toUserOutput :: User -> UserOutput
-toUserOutput User{..} = UserOutput userName userFullName
+-- ###############
+-- ### ENTRIES ###
+-- ###############
 
 --
 -- GET ALL ENTRIES
 --
 
-type GetEntries = "entries" :> Get '[JSON] [Entry]
+type GetEntries = Get '[JSON] [Entry]
 
 getEntries :: Application [Entry]
 getEntries = fmap allEntries getEverything
@@ -101,16 +107,63 @@ getEntries = fmap allEntries getEverything
 -- GET ONE ENTRY
 --
 
-type GetEntry = "entries" :> Capture "entry" Id :> Get '[JSON] Entry
+type GetEntry = Capture "entryId" Id :> Get '[JSON] Entry
 
 getEntry :: Id -> Application Entry
-getEntry entryId = getEntryOr entryId (throwError err404)
+getEntry eId = getEntryOr eId (throwError err404)
+
+--
+-- SET ONE ENTRY
+--
+
+type SetEntry = HasSession :> Capture "entryId" Id :> ReqBody '[JSON] Entry :> Post '[JSON] Entry
+
+setEntry :: UserSession -> Id -> Entry -> Application Entry
+setEntry (Session _ sessUser) eId input = do
+
+    return undefined
+
+--
+-- ADD ENTRY
+--
+
+type AddEntry = HasSession :> ReqBody '[JSON] Entry :> Post '[JSON] Entry
+
+addEntry :: UserSession -> Entry -> Application Entry
+addEntry (Session _ sessUser) input = do
+
+    return undefined
+
+--
+-- REMOVE ENTRY
+--
+
+type RemoveEntry = HasSession :> Capture "entryId" Id :> Delete '[JSON] Bool
+
+removeEntry :: UserSession -> Id -> Application Bool
+removeEntry (Session _ sessUser) eId = do
+
+    return undefined
+
+
+-- #############
+-- ### USERS ###
+-- #############
+
+--
+-- GET CURRENT USER
+--
+
+type GetCurrentUser = HasSession :> "current" :> Get '[JSON] UserOutput
+
+getCurrentUser :: UserSession -> Application UserOutput
+getCurrentUser (Session _ user) = return (toUserOutput user)
 
 --
 -- GET ALL USER INFO
 --
 
-type GetUsers = "users" :> Get '[JSON] [UserOutput]
+type GetUsers = Get '[JSON] [UserOutput]
 
 getUsers :: Application [UserOutput]
 getUsers = fmap allUsers getEverything >>= return . fmap toUserOutput
@@ -119,7 +172,7 @@ getUsers = fmap allUsers getEverything >>= return . fmap toUserOutput
 -- GET ONE USER INFO
 --
 
-type GetUser = "users" :> Capture "username" String :> Get '[JSON] UserOutput
+type GetUser = Capture "username" String :> Get '[JSON] UserOutput
 
 getUser :: String -> Application UserOutput
 getUser name = getUserOr name (throwError err404) >>= return . toUserOutput
@@ -128,7 +181,7 @@ getUser name = getUserOr name (throwError err404) >>= return . toUserOutput
 -- SET ONE USER INFO
 --
 
-type SetUser = "users" :> HasSession :> Capture "username" String :> ReqBody '[JSON] UserInput :> Post '[JSON] UserOutput
+type SetUser = HasSession :> Capture "username" String :> ReqBody '[JSON] UserInput :> Post '[JSON] UserOutput
 
 setUser :: UserSession -> String -> UserInput -> Application UserOutput
 setUser (Session _ sessUser) name input = do
@@ -144,8 +197,8 @@ setUser (Session _ sessUser) name input = do
     -- update the user using any details provided. Leave values
     -- alone if they are Nothing, alter if Maybe val.
     let update user = user
-            & userFullNameL ?= uiFullName input
-            & userPassHashL ?= mHash
+            & userFullNameL ~? uiFullName input
+            & userPassHashL ~? mHash
 
     -- perform our update on the db
     mUser <- modifyItems allUsersL $ \u ->
@@ -156,36 +209,64 @@ setUser (Session _ sessUser) name input = do
         Nothing -> throwError err404
         Just u -> return (toUserOutput u)
 
+--
+-- ADD USER
+--
 
-data UserInput = UserInput
-    { uiFullName :: Maybe String
-    , uiPass     :: Maybe String
-    } deriving (Show, Eq, Generic)
+type AddUser = IsAdmin :> ReqBody '[JSON] User :> Post '[JSON] UserOutput
 
-instance FromJSON UserInput where parseJSON = fromPrefix "ui"
+addUser :: AdminUserSession -> User -> Application UserOutput
+addUser _ input = do
+
+    return undefined
+
+--
+-- REMOVE USER
+--
+
+type RemoveUser = IsAdmin :> Capture "username" String :> Delete '[JSON] Bool
+
+removeUser :: AdminUserSession -> String -> Application Bool
+removeUser _ name = do
+
+    return undefined
+
+
+-- ############
+-- ### DAYS ###
+-- ############
 
 --
 -- GET DAYS
 --
 
-type GetDays = "days" :> Get '[JSON] [Day]
+type GetDays = Get '[JSON] [Day]
 
 getDays :: Application [Day]
 getDays = fmap allDays getEverything
 
 --
+-- GET DAY
+--
+
+type GetDay = Capture "dayId" Id :> Get '[JSON] Day
+
+getDay :: Id -> Application Day
+getDay dId = getDayOr dId (throwError err404)
+
+--
 -- SET DAY
 --
 
-type SetDay = IsAdmin :> "days" :> ReqBody '[JSON] DayInput :> Post '[JSON] Day
+type SetDay = IsAdmin :> ReqBody '[JSON] DayInput :> Post '[JSON] Day
 
 setDay :: AdminUserSession -> DayInput -> Application Day
-setDay (AdminSession sessId sessUser) input = do
+setDay _ input = do
 
     let update day = day
-            & dayTitleL  ?= diTitle input
-            & dayDateL   ?= diDate input
-            & dayEventsL ?= diEvents input
+            & dayTitleL  ~? diTitle input
+            & dayDateL   ~? diDate input
+            & dayEventsL ~? diEvents input
 
     mDay <- modifyItems allDaysL $ \day ->
         if dayId day == diId input then Just (update day) else Nothing
@@ -194,14 +275,28 @@ setDay (AdminSession sessId sessUser) input = do
         Nothing -> throwError err404
         Just newDay -> return newDay
 
-data DayInput = DayInput
-    { diId :: Id
-    , diTitle :: Maybe String
-    , diDate :: Maybe Int
-    , diEvents :: Maybe [Id]
-    } deriving (Show, Eq, Generic)
+--
+-- ADD DAY
+--
 
-instance FromJSON DayInput where parseJSON = fromPrefix "di"
+type AddDay = IsAdmin :> ReqBody '[JSON] DayInput :> Post '[JSON] Day
+
+addDay :: AdminUserSession -> DayInput -> Application Day
+addDay _ input = do
+
+    return undefined
+
+--
+-- REMOVE DAY
+--
+
+type RemoveDay = IsAdmin :> ReqBody '[JSON] DayInput :> Delete '[JSON] Bool
+
+removeDay :: AdminUserSession -> DayInput -> Application Bool
+removeDay _ input = do
+
+    return undefined
+
 
 --
 -- Utility functions:
@@ -252,29 +347,7 @@ throwIf b err = if b then throwError err else return ()
 
 -- set the value pointed at by the lens to the provided Maybe a
 -- if it's Just a, or leave the value alone if it's Nothing:
-(?=) :: Lens' a b -> Maybe b -> a -> a
-(?=) l mVal = over l $ \val -> case mVal of
+(~?) :: Lens' a b -> Maybe b -> a -> a
+(~?) l mVal = over l $ \val -> case mVal of
     Nothing -> val
     Just v  -> v
-
---ifMaybe :: Monad m => Maybe a -> (a -> m ()) -> m ()
---ifMaybe m act = case m of
---    Nothing -> return ()
---    Just a -> act a
-
---
--- Here's our API..
---
-
--- get events
--- set event
--- remove event
--- order events
-
--- get days
--- set day
--- remove day
-
--- get users
--- get session for user
--- set user (name/password bcrypt hash settable)

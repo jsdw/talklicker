@@ -13,6 +13,12 @@ module Types.Types (
     Day(..),
     Everything(..),
 
+    UserInput(..),
+    DayInput(..),
+    LoginInput(..),
+    UserOutput(..),
+    toUserOutput,
+
     fromPrefix,
     toPrefix) where
 
@@ -100,6 +106,43 @@ instance FromJSON Everything where parseJSON = fromPrefix "all"
 
 instance Default Everything where
     def = Everything [] [] []
+
+--
+-- Route specific types
+--
+
+data UserInput = UserInput
+    { uiFullName :: Maybe String
+    , uiPass     :: Maybe String
+    } deriving (Show, Eq, Generic)
+
+instance FromJSON UserInput where parseJSON = fromPrefix "ui"
+
+data DayInput = DayInput
+    { diId :: Id
+    , diTitle :: Maybe String
+    , diDate :: Maybe Int
+    , diEvents :: Maybe [Id]
+    } deriving (Show, Eq, Generic)
+
+instance FromJSON DayInput where parseJSON = fromPrefix "di"
+
+data LoginInput = LoginInput
+    { loginName :: String
+    , loginPass :: String
+    } deriving (Eq, Show, Generic)
+
+instance FromJSON LoginInput where parseJSON = fromPrefix "login"
+
+data UserOutput = UserOutput
+    { _uoUserName :: String
+    , _uoUserFullName :: String
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON UserOutput where toJSON = toPrefix "_uoUser"
+
+toUserOutput :: User -> UserOutput
+toUserOutput User{..} = UserOutput userName userFullName
 
 --
 -- handy JSON generic to/from funcs that strip prefixes, fixing
