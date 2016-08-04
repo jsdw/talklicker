@@ -71,6 +71,7 @@ instance FromJSON EntryType
 
 data Entry = Entry
     { entryId          :: Id
+    , entryUser        :: String
     , entryDuration    :: Int
     , entryName        :: String
     , entryDescription :: String

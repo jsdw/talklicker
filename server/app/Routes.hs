@@ -142,8 +142,9 @@ type RemoveEntry = HasSession :> Capture "entryId" Id :> Delete '[JSON] Bool
 
 removeEntry :: UserSession -> Id -> Application Bool
 removeEntry (Session _ sessUser) eId = do
-
-    return undefined
+    getEntryOr eId (throwError err404)
+    isRemoved <- removeItems allEntriesL (\e -> entryUser e == userName sessUser && entryId e == eId)
+    if isRemoved then return True else throwError err401
 
 
 -- #############
@@ -228,8 +229,9 @@ type RemoveUser = IsAdmin :> Capture "username" String :> Delete '[JSON] Bool
 
 removeUser :: AdminUserSession -> String -> Application Bool
 removeUser _ name = do
-
-    return undefined
+    getUserOr name (throwError err404)
+    isRemoved <- removeItems allUsersL (\u -> userName u == name)
+    if isRemoved then return True else throwError err401
 
 
 -- ############
@@ -290,13 +292,13 @@ addDay _ input = do
 -- REMOVE DAY
 --
 
-type RemoveDay = IsAdmin :> ReqBody '[JSON] DayInput :> Delete '[JSON] Bool
+type RemoveDay = IsAdmin :> ReqBody '[JSON] Id :> Delete '[JSON] Bool
 
-removeDay :: AdminUserSession -> DayInput -> Application Bool
-removeDay _ input = do
-
-    return undefined
-
+removeDay :: AdminUserSession -> Id -> Application Bool
+removeDay _ dId = do
+    getDayOr dId (throwError err404)
+    isRemoved <- removeItems allDaysL (\d -> dayId d == dId)
+    if isRemoved then return True else throwError err401
 
 --
 -- Utility functions:
