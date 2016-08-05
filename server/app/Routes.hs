@@ -6,7 +6,7 @@ module Routes (routes, Routes) where
 import Control.Monad.Except (MonadError)
 import Control.Monad.Reader (ask)
 import Sessions (Sessions)
-import Control.Monad.Trans (liftIO)
+import Control.Monad.Trans (liftIO, MonadIO)
 import Crypto.KDF.BCrypt (validatePassword, hashPassword)
 
 import qualified Data.List as List
@@ -69,8 +69,8 @@ login LoginInput{..} = do
     user <- getUserOr loginName (throwError err401)
 
     -- if pass not set (empty passHash) or pass provided matches passHash, it's valid.
-    let isValidPass = if null (userPassHash user) then True
-                      else validatePassword (Bytes.pack loginPass) (Bytes.pack $ userPassHash user)
+    let isValidPass = if null (userPass user) then True
+                      else validatePassword (Bytes.pack loginPass) (Bytes.pack $ userPass user)
 
     throwIf (not isValidPass) err401
 
@@ -188,18 +188,20 @@ setUser :: UserSession -> String -> UserInput -> Application UserOutput
 setUser (Session _ sessUser) name input = do
 
     -- we must be an admin or be the user we're editing
-    throwIf (userType sessUser /= Admin && userName sessUser /= name) err401
+    let isAdmin = userType sessUser == Admin
+    throwIf (not isAdmin && userName sessUser /= name) err401
 
     -- hash the provided password if necessary
     mHash <- case uiPass input of
-        Just pass -> Just . Bytes.unpack <$> liftIO (hashPassword 13 (Bytes.pack pass))
+        Just pass -> Just <$> hashPass pass
         Nothing -> return Nothing
 
     -- update the user using any details provided. Leave values
     -- alone if they are Nothing, alter if Maybe val.
     let update user = user
             & userFullNameL ~? uiFullName input
-            & userPassHashL ~? mHash
+            & userPassL     ~? mHash
+            & userTypeL     ~? if isAdmin then uiType input else Nothing
 
     -- perform our update on the db
     mUser <- modifyItems allUsersL $ \u ->
@@ -218,8 +220,8 @@ type AddUser = IsAdmin :> ReqBody '[JSON] User :> Post '[JSON] UserOutput
 
 addUser :: AdminUserSession -> User -> Application UserOutput
 addUser _ input = do
-
-    return undefined
+    passHash <- hashPass (userPass input)
+    toUserOutput <$> addItem allUsersL input{ userPass = passHash }
 
 --
 -- REMOVE USER
@@ -260,10 +262,10 @@ getDay dId = getDayOr dId (throwError err404)
 -- SET DAY
 --
 
-type SetDay = IsAdmin :> ReqBody '[JSON] DayInput :> Post '[JSON] Day
+type SetDay = IsAdmin :> Capture "dayId" Id :> ReqBody '[JSON] DayInput :> Post '[JSON] Day
 
-setDay :: AdminUserSession -> DayInput -> Application Day
-setDay _ input = do
+setDay :: AdminUserSession -> Id -> DayInput -> Application Day
+setDay _ dId input = do
 
     let update day = day
             & dayTitleL  ~? diTitle input
@@ -271,7 +273,7 @@ setDay _ input = do
             & dayEventsL ~? diEvents input
 
     mDay <- modifyItems allDaysL $ \day ->
-        if dayId day == diId input then Just (update day) else Nothing
+        if dayId day == dId then Just (update day) else Nothing
 
     case mDay of
         Nothing -> throwError err404
@@ -304,6 +306,9 @@ removeDay _ dId = do
 -- Utility functions:
 --
 
+hashPass :: MonadIO m => String -> m String
+hashPass = fmap Bytes.unpack . liftIO . hashPassword 13 . Bytes.pack
+
 getUserOr :: String -> Application User -> Application User
 getUserOr name = getOr allUsersL (\u -> userName u == name)
 
@@ -315,28 +320,37 @@ getEntryOr dId = getOr allEntriesL (\d -> entryId d == dId)
 
 getOr :: Lens' Everything [a] -> (a -> Bool) -> Application a -> Application a
 getOr l compareFn orElse = do
-    users <- getEverything
-    case List.find compareFn (users ^. l) of
+    mItem <- getItem l compareFn
+    case mItem of
         Nothing -> orElse
-        Just u -> return u
+        Just item -> return item
+
+getItem :: Lens' Everything [a] -> (a -> Bool) -> Application (Maybe a)
+getItem l compareFn = do
+    e <- getEverything
+    return $ List.find compareFn (view l e)
+
+addItem :: Lens' Everything [a] -> a -> Application a
+addItem l item = modifyDb $ \everything -> (over l (item :) everything, item)
 
 removeItems :: Lens' Everything [a] -> (a -> Bool) -> Application Bool
-removeItems l removeThese = do
-    db <- appDatabase <$> ask
-    Database.modify db $ \everything ->
-        let (removed, kept) = List.partition removeThese (view l everything)
-        in return (set l kept everything, not (null removed))
+removeItems l removeThese = modifyDb $ \everything ->
+    let (removed, kept) = List.partition removeThese (view l everything)
+    in (set l kept everything, not (null removed))
 
 modifyItems :: Lens' Everything [a] -> (a -> Maybe a) -> Application (Maybe a)
-modifyItems l modifyFn = do
-    db <- appDatabase <$> ask
-    Database.modify db $ \everything ->
-        let (newItems, mItem) = foldr fn ([], Nothing) (view l everything)
-        in return (set l newItems everything, mItem)
+modifyItems l modifyFn = modifyDb $ \everything ->
+    let (newItems, mItem) = foldr fn ([], Nothing) (view l everything)
+    in (set l newItems everything, mItem)
   where
     fn item (items, mItem) = case modifyFn item of
         Nothing      -> (item : items, mItem)
         Just newItem -> (newItem : items, Just newItem)
+
+modifyDb :: (Everything -> (Everything, a)) -> Application a
+modifyDb fn = do
+    db <- appDatabase <$> ask
+    Database.modify db (return . fn)
 
 getSessions :: Application UserSessions
 getSessions = ask >>= return . appSessions

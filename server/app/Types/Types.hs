@@ -53,7 +53,7 @@ instance FromJSON UserType
 data User = User
     { userName     :: String
     , userFullName :: String
-    , userPassHash :: String
+    , userPass     :: String
     , userType     :: UserType
     } deriving (Eq, Show, Generic)
 
@@ -115,13 +115,13 @@ instance Default Everything where
 data UserInput = UserInput
     { uiFullName :: Maybe String
     , uiPass     :: Maybe String
+    , uiType     :: Maybe UserType
     } deriving (Show, Eq, Generic)
 
 instance FromJSON UserInput where parseJSON = fromPrefix "ui"
 
 data DayInput = DayInput
-    { diId :: Id
-    , diTitle :: Maybe String
+    { diTitle :: Maybe String
     , diDate :: Maybe Int
     , diEvents :: Maybe [Id]
     } deriving (Show, Eq, Generic)
