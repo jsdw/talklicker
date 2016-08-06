@@ -13,6 +13,7 @@ module Types.Types (
     Day(..),
     Everything(..),
 
+    EntryInput(..),
     UserInput(..),
     DayInput(..),
     LoginInput(..),
@@ -36,7 +37,7 @@ import Servant (FromHttpApiData(..))
 --
 
 data Id = Id String
-    deriving (Show, Eq, Generic)
+    deriving (Show, Eq, Ord, Generic)
 
 instance ToJSON Id
 instance FromJSON Id
@@ -78,7 +79,6 @@ data Entry = Entry
     , entryType        :: EntryType
     , entryCreated     :: Int
     , entryModified    :: Int
-    , entryOrder       :: Int
     } deriving (Eq, Show, Generic)
 
 instance ToJSON Entry where toJSON = toPrefix "entry"
@@ -111,6 +111,16 @@ instance Default Everything where
 --
 -- Route specific types
 --
+
+data EntryInput = EntryInput
+    { eiUser        :: Maybe String
+    , eiDuration    :: Maybe Int
+    , eiName        :: Maybe String
+    , eiDescription :: Maybe String
+    , eiType        :: Maybe EntryType
+    } deriving (Show, Eq, Generic)
+
+instance FromJSON EntryInput where parseJSON = fromPrefix "ei"
 
 data UserInput = UserInput
     { uiFullName :: Maybe String

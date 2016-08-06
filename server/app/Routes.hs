@@ -9,6 +9,8 @@ import Sessions (Sessions)
 import Control.Monad.Trans (liftIO, MonadIO)
 import Crypto.KDF.BCrypt (validatePassword, hashPassword)
 
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Data.List as List
 import qualified Data.ByteString.Char8 as Bytes
 import qualified Database
@@ -42,8 +44,8 @@ routes = coreRoutes
 type CoreRoutes = Login :<|> Logout
 coreRoutes      = login :<|> logout
 
-type EntryRoutes = GetEntries :<|> GetEntry :<|> SetEntry :<|> AddEntry :<|> RemoveEntry
-entryRoutes      = getEntries :<|> getEntry :<|> setEntry :<|> addEntry :<|> removeEntry
+type EntryRoutes = GetEntries :<|> GetEntry :<|> SetEntry :<|> SetEntryOrder :<|> AddEntry :<|> RemoveEntry
+entryRoutes      = getEntries :<|> getEntry :<|> setEntry :<|> setEntryOrder :<|> addEntry :<|> removeEntry
 
 type UserRoutes = GetCurrentUser :<|> GetUsers :<|> GetUser :<|> SetUser :<|> AddUser :<|> RemoveUser
 userRoutes      = getCurrentUser :<|> getUsers :<|> getUser :<|> setUser :<|> addUser :<|> removeUser
@@ -116,12 +118,42 @@ getEntry eId = getEntryOr eId (throwError err404)
 -- SET ONE ENTRY
 --
 
-type SetEntry = HasSession :> Capture "entryId" Id :> ReqBody '[JSON] Entry :> Post '[JSON] Entry
+type SetEntry = HasSession :> Capture "entryId" Id :> ReqBody '[JSON] EntryInput :> Post '[JSON] Entry
 
-setEntry :: UserSession -> Id -> Entry -> Application Entry
+setEntry :: UserSession -> Id -> EntryInput -> Application Entry
 setEntry (Session _ sessUser) eId input = do
 
-    return undefined
+    let isAdmin = userType sessUser == Admin
+
+    let update entry = entry
+            & entryDurationL    ~? eiDuration input
+            & entryNameL        ~? eiName input
+            & entryDescriptionL ~? eiDescription input
+            & entryTypeL        ~? eiType input
+            & entryUserL        ~? if isAdmin then Nothing else eiUser input
+
+    mNewEntry <- modifyItems allEntriesL $ \e ->
+        if (isAdmin || entryUser e == userName sessUser) && eId == entryId e
+        then Just (update e) else Nothing
+
+    case mNewEntry of
+        Nothing -> throwError err404
+        Just e  -> return e
+
+--
+-- SET ENTRY ORDER
+--
+
+type SetEntryOrder = HasSession :> "order" :> ReqBody '[JSON] [Id] :> Post '[JSON] [Id]
+
+setEntryOrder :: UserSession -> [Id] -> Application [Id]
+setEntryOrder _ ids = do
+
+    newEverything <- modifyDb $ \everything ->
+        let e = over allEntriesL (sortListBy entryId ids) everything
+        in (e,e)
+
+    return $ fmap entryId $ allEntries newEverything
 
 --
 -- ADD ENTRY
@@ -305,6 +337,23 @@ removeDay _ dId = do
 --
 -- Utility functions:
 --
+
+-- sort the subitems [b] into the order provided within
+-- list [a], leaving other a's alone relatively.
+sortListBy :: Ord b => (a -> b) -> [b] -> [a] -> [a]
+sortListBy toOrderItem order list = doSort orderList order
+  where
+    orderList = fmap (\a -> (toOrderItem a, a)) list
+    orderSet = Set.fromList order
+    listMap = Map.fromList orderList
+
+    doSort [] _ = []
+    doSort as [] = fmap snd as
+    doSort items@((aOrder,a):as) (o:os) = if Set.member aOrder orderSet
+        then case Map.lookup o listMap of
+            Just newA -> newA : doSort as os
+            Nothing   -> doSort items os
+        else a : doSort as (o:os)
 
 hashPass :: MonadIO m => String -> m String
 hashPass = fmap Bytes.unpack . liftIO . hashPassword 13 . Bytes.pack
