@@ -8,6 +8,7 @@ import Control.Monad.Reader (ask)
 import Sessions (Sessions)
 import Control.Monad.Trans (liftIO, MonadIO)
 import Crypto.KDF.BCrypt (validatePassword, hashPassword)
+import Data.Time.Clock.POSIX (getPOSIXTime)
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -16,6 +17,7 @@ import qualified Data.ByteString.Char8 as Bytes
 import qualified Database
 -- import Database (Database)
 import qualified Sessions
+import qualified Id
 
 import Lens.Micro.Platform
 import Types
@@ -159,24 +161,53 @@ setEntryOrder _ ids = do
 -- ADD ENTRY
 --
 
-type AddEntry = HasSession :> ReqBody '[JSON] Entry :> Post '[JSON] Entry
+type AddEntry = HasSession :> ReqBody '[JSON] AddEntryInput :> Post '[JSON] Entry
 
-addEntry :: UserSession -> Entry -> Application Entry
+addEntry :: UserSession -> AddEntryInput -> Application Entry
 addEntry (Session _ sessUser) input = do
 
-    return undefined
+    let nameToAddAs = case addEntryUser input of
+            Nothing -> userName sessUser
+            Just n -> n
+
+    -- entry must be same user as session user unless user is admin:
+    throwIf (userType sessUser /= Admin && nameToAddAs /= userName sessUser) err401
+
+    currTime <- getTimeMillis
+    newId <- Id <$> Id.generate
+    mItem <- getItem allEntriesL (\e -> entryId e == newId)
+
+    let newItem = Entry
+            { entryId          = newId
+            , entryUser        = nameToAddAs
+            , entryDuration    = addEntryDuration input
+            , entryName        = addEntryName input
+            , entryDescription = addEntryDescription input
+            , entryType        = addEntryType input
+            , entryCreated     = currTime
+            , entryModified    = currTime
+            }
+
+    case mItem of
+        Nothing -> addItem allEntriesL newItem >> return newItem
+        Just _ -> throwError err500
+
 
 --
 -- REMOVE ENTRY
 --
 
-type RemoveEntry = HasSession :> Capture "entryId" Id :> Delete '[JSON] Bool
+type RemoveEntry = HasSession :> Capture "entryId" Id :> Delete '[JSON] ()
 
-removeEntry :: UserSession -> Id -> Application Bool
+removeEntry :: UserSession -> Id -> Application ()
 removeEntry (Session _ sessUser) eId = do
     getEntryOr eId (throwError err404)
-    isRemoved <- removeItems allEntriesL (\e -> entryUser e == userName sessUser && entryId e == eId)
-    if isRemoved then return True else throwError err401
+    modifyDb $ \e ->
+        let keepFn en = entryUser en /= userName sessUser || entryId en /= eId
+            newE = over allEntriesL (filter keepFn) e
+        in (cleanupEverything newE, ())
+
+    return ()
 
 
 -- #############
@@ -252,20 +283,33 @@ type AddUser = IsAdmin :> ReqBody '[JSON] User :> Post '[JSON] UserOutput
 
 addUser :: AdminUserSession -> User -> Application UserOutput
 addUser _ input = do
-    passHash <- hashPass (userPass input)
-    toUserOutput <$> addItem allUsersL input{ userPass = passHash }
+    mUser <- getItem allUsersL (\u -> userName u == userName input)
+    case mUser of
+        Nothing -> do
+            passHash <- hashPass (userPass input)
+            toUserOutput <$> addItem allUsersL input{ userPass = passHash }
+        Just _ -> throwError err400 -- username taken!
+
+
 
 --
 -- REMOVE USER
 --
 
-type RemoveUser = IsAdmin :> Capture "username" String :> Delete '[JSON] Bool
+type RemoveUser = IsAdmin :> Capture "username" String :> Delete '[JSON] ()
 
-removeUser :: AdminUserSession -> String -> Application Bool
+removeUser :: AdminUserSession -> String -> Application ()
 removeUser _ name = do
+
+    -- throw if user not found.
     getUserOr name (throwError err404)
-    isRemoved <- removeItems allUsersL (\u -> userName u == name)
-    if isRemoved then return True else throwError err401
+
+    -- cleanup, removing the user and all entries with that user name.
+    modifyDb $ \e ->
+        let newE = cleanupEverything $ over allUsersL (filter (\a -> userName a /= name)) e
+        in (newE, ())
+
+    return ()
 
 
 -- ############
@@ -299,10 +343,17 @@ type SetDay = IsAdmin :> Capture "dayId" Id :> ReqBody '[JSON] DayInput :> Post 
 setDay :: AdminUserSession -> Id -> DayInput -> Application Day
 setDay _ dId input = do
 
-    let update day = day
+    let mEntryIds = diEntries input
+        update day = day
             & dayTitleL  ~? diTitle input
             & dayDateL   ~? diDate input
-            & dayEventsL ~? diEvents input
+            & dayEntriesL ~? mEntryIds
+
+    entriesExist <- case mEntryIds of
+        Nothing -> return True
+        Just eIds -> doEntriesExist eIds
+
+    throwIf (not entriesExist) err400
 
     mDay <- modifyItems allDaysL $ \day ->
         if dayId day == dId then Just (update day) else Nothing
@@ -315,10 +366,29 @@ setDay _ dId input = do
 -- ADD DAY
 --
 
-type AddDay = IsAdmin :> ReqBody '[JSON] DayInput :> Post '[JSON] Day
+type AddDay = IsAdmin :> ReqBody '[JSON] AddDayInput :> Post '[JSON] Day
 
-addDay :: AdminUserSession -> DayInput -> Application Day
+addDay :: AdminUserSession -> AddDayInput -> Application Day
 addDay _ input = do
+
+    let entryIds = addDayEntries input
+
+    entriesExist <- doEntriesExist entryIds
+    throwIf (not entriesExist) err400
+
+    newId <- Id <$> Id.generate
+    mItem <- getItem allDaysL (\d -> dayId d == newId)
+
+    let newDay = Day
+            { dayId = newId
+            , dayTitle = addDayTitle input
+            , dayDate = addDayDate input
+            , dayEntries = entryIds
+            }
+
+    case mItem of
+        Nothing -> addItem allDaysL newDay >> return newDay
+        Just _ -> throwError err500
 
     return undefined
 
@@ -337,6 +407,28 @@ removeDay _ dId = do
 --
 -- Utility functions:
 --
+
+-- consistify stuff, removing
+-- - entries corresponding to users that no longer exist
+-- - entry IDs in days corresponding to entries that no longer exist
+cleanupEverything :: Everything -> Everything
+cleanupEverything = cleanupDays . cleanupEntries
+  where
+    cleanupEntries e =
+        let userSet = Set.fromList (fmap userName $ allUsers e)
+        in over allEntriesL (filter (\en -> Set.member (entryUser en) userSet)) e
+    cleanupDays e =
+        let entrySet = Set.fromList (fmap entryId $ allEntries e)
+        in over (allDaysL . each . dayEntriesL) (filter (\eId -> Set.member eId entrySet)) e
+
+doEntriesExist :: [Id] -> Application Bool
+doEntriesExist ids = do
+    entrySet <- (Set.fromList . fmap entryId . allEntries) <$> getEverything
+    return $ List.all (== True) $ fmap (\i -> Set.member i entrySet) ids
+
+-- get current time in milliseconds
+getTimeMillis :: (Integral t, MonadIO m) => m t
+getTimeMillis = liftIO (round . (* 1000) <$> getPOSIXTime)
 
 -- sort the subitems [b] into the order provided within
 -- list [a], leaving other a's alone relatively.
@@ -380,7 +472,7 @@ getItem l compareFn = do
     return $ List.find compareFn (view l e)
 
 addItem :: Lens' Everything [a] -> a -> Application a
-addItem l item = modifyDb $ \everything -> (over l (item :) everything, item)
+addItem l item = modifyDb $ \everything -> (over l (++ [item]) everything, item)
 
 removeItems :: Lens' Everything [a] -> (a -> Bool) -> Application Bool
 removeItems l removeThese = modifyDb $ \everything ->

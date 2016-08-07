@@ -5,12 +5,10 @@ import Control.Concurrent
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Control.Monad.Trans (MonadIO, liftIO)
-import Crypto.Random (getRandomBytes, MonadRandom)
-import qualified Data.ByteString.Char8 as ByteChars
-import qualified Data.ByteString as Bytes
+
+import qualified Id
 
 type Id = String
-
 newtype Sessions a = Sessions (MVar (Map Id a))
 
 empty :: MonadIO m => m (Sessions a)
@@ -27,14 +25,5 @@ remove sessId (Sessions m) = liftIO $ modifyMVar_ m $ \sessMap -> return (Map.de
 
 create :: MonadIO m => a -> Sessions a -> m Id
 create a (Sessions m) = liftIO $ modifyMVar m $ \sessMap -> do
-    sessId <- generateSessionId
+    sessId <- Id.generate
     return (Map.insert sessId a sessMap, sessId)
-
--- generate a session ID frm alphanumeric chars
-generateSessionId :: MonadRandom m => m Id
-generateSessionId = do
-    bytes <- getRandomBytes 30
-    return $ ByteChars.unpack $ Bytes.map toAZ bytes
-  where
-    toAZ n = let c = n `mod` 62 in
-             if c < 10 then c + 48 else if c < 36 then c + (65 - 10) else c + (97 - 36)

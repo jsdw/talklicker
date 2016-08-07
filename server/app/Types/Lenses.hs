@@ -14,8 +14,10 @@ makeLensesL ''Entry
 makeLensesL ''Day
 makeLensesL ''Everything
 
+makeLensesL ''AddEntryInput
 makeLensesL ''EntryInput
 makeLensesL ''UserInput
+makeLensesL ''AddDayInput
 makeLensesL ''DayInput
 makeLensesL ''LoginInput
 makeLensesL ''UserOutput

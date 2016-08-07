@@ -13,8 +13,10 @@ module Types.Types (
     Day(..),
     Everything(..),
 
+    AddEntryInput(..),
     EntryInput(..),
     UserInput(..),
+    AddDayInput(..),
     DayInput(..),
     LoginInput(..),
     UserOutput(..),
@@ -36,7 +38,7 @@ import Servant (FromHttpApiData(..))
 -- Our core types:
 --
 
-data Id = Id String
+data Id = Id { unId :: String }
     deriving (Show, Eq, Ord, Generic)
 
 instance ToJSON Id
@@ -86,10 +88,10 @@ instance FromJSON Entry where parseJSON = fromPrefix "entry"
 
 
 data Day = Day
-    { dayId     :: Id
-    , dayTitle  :: String
-    , dayDate   :: Int
-    , dayEvents :: [Id]
+    { dayId      :: Id
+    , dayTitle   :: String
+    , dayDate    :: Int
+    , dayEntries :: [Id]
     } deriving (Eq, Show, Generic)
 
 instance ToJSON Day where toJSON = toPrefix "day"
@@ -112,6 +114,16 @@ instance Default Everything where
 -- Route specific types
 --
 
+data AddEntryInput = AddEntryInput
+    { addEntryUser        :: Maybe String
+    , addEntryDuration    :: Int
+    , addEntryName        :: String
+    , addEntryDescription :: String
+    , addEntryType        :: EntryType
+    } deriving (Show, Eq, Generic)
+
+instance FromJSON AddEntryInput where parseJSON = fromPrefix "addEntry"
+
 data EntryInput = EntryInput
     { eiUser        :: Maybe String
     , eiDuration    :: Maybe Int
@@ -130,10 +142,18 @@ data UserInput = UserInput
 
 instance FromJSON UserInput where parseJSON = fromPrefix "ui"
 
+data AddDayInput = AddDayInput
+    { addDayTitle   :: String
+    , addDayDate    :: Int
+    , addDayEntries :: [Id]
+    } deriving (Show, Eq, Generic)
+
+instance FromJSON AddDayInput where parseJSON = fromPrefix "addDay"
+
 data DayInput = DayInput
-    { diTitle :: Maybe String
-    , diDate :: Maybe Int
-    , diEvents :: Maybe [Id]
+    { diTitle   :: Maybe String
+    , diDate    :: Maybe Int
+    , diEntries :: Maybe [Id]
     } deriving (Show, Eq, Generic)
 
 instance FromJSON DayInput where parseJSON = fromPrefix "di"
@@ -146,7 +166,7 @@ data LoginInput = LoginInput
 instance FromJSON LoginInput where parseJSON = fromPrefix "login"
 
 data UserOutput = UserOutput
-    { _uoUserName :: String
+    { _uoUserName     :: String
     , _uoUserFullName :: String
     } deriving (Eq, Show, Generic)
 

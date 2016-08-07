@@ -36,6 +36,7 @@ executable talklicker-exe
                      , cryptonite
                      , bytestring
                      , containers
+                     , time
                      , wai
                      , microlens-platform
                      , microlens-th
