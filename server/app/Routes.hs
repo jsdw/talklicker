@@ -390,8 +390,6 @@ addDay _ input = do
         Nothing -> addItem allDaysL newDay >> return newDay
         Just _ -> throwError err500
 
-    return undefined
-
 --
 -- REMOVE DAY
 --
