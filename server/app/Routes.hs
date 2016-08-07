@@ -421,6 +421,7 @@ cleanupEverything = cleanupDays . cleanupEntries
         let entrySet = Set.fromList (fmap entryId $ allEntries e)
         in over (allDaysL . each . dayEntriesL) (filter (\eId -> Set.member eId entrySet)) e
 
+-- check whether all Ids provided are valid entries in the DB
 doEntriesExist :: [Id] -> Application Bool
 doEntriesExist ids = do
     entrySet <- (Set.fromList . fmap entryId . allEntries) <$> getEverything
