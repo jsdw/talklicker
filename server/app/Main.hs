@@ -20,13 +20,15 @@ main = do
 
     args <- Args.parsed
 
-    let Just fileName = Map.lookup "database" args <|> Map.lookup "db" args <|> Just "talklicker.json"
+    let arg key = Map.lookup key args
+    let Just fileName = arg "database" <|> arg "db" <|> arg "d" <|> Just "talklicker.json"
+    let Just staticDir = arg "static-files" <|> arg "static" <|> arg "s" <|> Just "static"
 
     appState <- AppState <$> Database.init fileName <*> Sessions.empty
 
-    let handlers = enter (appToHandler appState) routes
+    let handlers = enter (appToHandler appState) routes :<|> serveDirectory staticDir
     let context = hasSessionHandler appState :. isAdminHandler appState :. EmptyContext
-    let server = serveWithContext (Proxy :: Proxy Routes) context handlers
+    let server = serveWithContext (Proxy :: Proxy (Routes :<|> Raw)) context handlers
 
     run 8080 server
 
