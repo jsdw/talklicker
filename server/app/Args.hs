@@ -12,5 +12,6 @@ parsed = parse <$> getArgs
 parse :: [String] -> Map String String
 parse (('-' : '-' : key) : rest) = parse (('-' : key) : rest)
 parse (('-' : key) : val : rest) = Map.singleton key val <> parse rest
+parse (_ : rest) = parse rest
 parse _ = Map.empty
 
