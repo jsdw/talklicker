@@ -1,5 +1,14 @@
 #!/bin/bash
 
+# exit on first sign of error:
+set -e
+
+# nabbed from SO; cd to directory script lives in:
+cd "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PWD=$(pwd)
+echo "Script pwd is: $PWD"
+
+# test some prerequisities
 if [ ! $(which stack) ]
 then
 	echo "'stack' binary not found in your PATH"
@@ -11,11 +20,6 @@ then
 	echo "'elm' binary not found in your PATH"
 	exit 1
 fi
-
-# nabbed from SO; cd to directory script lives in:
-cd "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-PWD=$(pwd)
-echo "Script pwd is: $PWD"
 
 # build the haskell binary:
 echo "=== building server binary ==="
@@ -31,7 +35,7 @@ fi
 # build elm JS and copy stuff into build dir:
 cd src
 echo "=== building client code ==="
-elm make Main.elm --output ../build/app.js
+elm make Main.elm --warn --yes --output ../build/app.js
 
 echo "=== link static assets across ==="
 cd ..
