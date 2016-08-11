@@ -1,4 +1,4 @@
-module Api.Users exposing (login, logout, get, current, User, UserType(..))
+module Api.Users exposing (login, logout, get, set, current, User, UserType(..))
 
 import Json.Encode as Enc exposing (Value, null)
 import Json.Decode as Dec exposing (Decoder, (:=))
