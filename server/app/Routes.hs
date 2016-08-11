@@ -9,6 +9,7 @@ import Sessions (Sessions)
 import Control.Monad.Trans (liftIO, MonadIO)
 import Crypto.KDF.BCrypt (validatePassword, hashPassword)
 import Data.Time.Clock.POSIX (getPOSIXTime)
+import Data.Monoid ((<>))
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -64,9 +65,9 @@ dayRoutes      = getDays :<|> getDay :<|> setDay :<|> addDay :<|> removeDay
 -- LOGIN
 --
 
-type Login = "login" :> ReqBody '[JSON] LoginInput :> Post '[JSON] String
+type Login = "login" :> ReqBody '[JSON] LoginInput :> Post '[JSON] (Headers '[Header "Set-Cookie" String] ())
 
-login :: LoginInput -> Application String
+login :: LoginInput -> Application (Headers '[Header "Set-Cookie" String] ())
 login LoginInput{..} = do
 
     sess <- getSessions
@@ -79,7 +80,10 @@ login LoginInput{..} = do
     throwIf (not isValidPass) err401
 
     sessId <- Sessions.create (loginName) sess
-    return sessId
+    return $ addHeader (cookie "talklicker-session" sessId) ()
+
+  where
+    cookie key val = key <> "=" <> val
 
 --
 -- LOGOUT

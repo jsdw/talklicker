@@ -17,11 +17,13 @@ import Servant.Server.Experimental.Auth (mkAuthHandler, AuthServerData, AuthHand
 import Network.Wai (Request, requestHeaders)
 import Control.Monad.Trans.Maybe (runMaybeT)
 import Control.Monad (MonadPlus, mzero)
+import Data.Map (Map)
 
 import qualified Sessions as Sessions
 import qualified Data.ByteString.Char8 as Bytes
 import qualified Data.List as List
 import qualified Database as Database
+import qualified Data.Map as Map
 
 import Servant
 import Types
@@ -42,8 +44,9 @@ maybeHasSession :: AppState -> Request -> Handler (Maybe (Session User))
 maybeHasSession (AppState db sessions) req = do
 
     mSess <- runMaybeT $ do
-        sessId'  <- liftMaybe $ List.lookup "Talklicker-Session" (requestHeaders req)
-        let sessId = Bytes.unpack sessId'
+
+        let cookies = parseCookiesFromReq req
+        sessId  <- liftMaybe $ Map.lookup "talklicker-session" cookies
         sessName <- liftMaybe =<< Sessions.get sessId sessions
         theDb   <- Database.read db
         user    <- liftMaybe $ List.find (\u -> userName u == sessName) (allUsers theDb)
@@ -103,3 +106,18 @@ type instance AuthServerData (AuthProtect "isAdmin") = AdminSession User
 
 liftMaybe :: (MonadPlus m) => Maybe a -> m a
 liftMaybe = maybe mzero return
+
+parseCookiesFromReq :: Request -> Map String String
+parseCookiesFromReq req = case List.lookup "Cookie" (requestHeaders req) of
+    Nothing -> Map.empty
+    Just bs -> parseCookies bs
+
+parseCookies :: Bytes.ByteString -> Map String String
+parseCookies bs =
+  let
+    parseOne str = case Bytes.split '=' (Bytes.dropWhile (== ' ') str) of
+        (key : val : []) -> Map.singleton (Bytes.unpack key) (Bytes.unpack val)
+        _ -> Map.empty
+  in
+    mconcat $ fmap parseOne (Bytes.split ';' bs)
+
