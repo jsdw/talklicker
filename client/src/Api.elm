@@ -1,17 +1,23 @@
-module Api exposing (request, Verb(..), Error(..), Path)
+module Api exposing (request, Verb(..), Error(..), Path, noResult, (:>))
 
 import Http
 import Json.Encode as JsonEnc exposing (Value, null)
 import Json.Decode as JsonDec exposing (Decoder)
 import Task exposing (Task)
 
+(:>) : String -> String -> String
+(:>) a b = a ++ "/" ++ b
+
+noResult : Decoder ()
+noResult = (JsonDec.succeed ())
+
 type Verb = Get | Post | Delete
 
 type Error
     = BasicError Http.RawError
     | DecodeError String
-    | ServerError String
-    | ClientError String
+    | ServerError Int String
+    | ClientError Int String
 
 type alias Path = String
 
@@ -36,16 +42,14 @@ request verb path mData decoder =
 
     handleResponse res' =
       let
-        status = res'.statusText
-
         bodyString = case res'.value of
             Http.Text s -> s
             _ -> ""
 
         handleResponseError res =
             if res.status >= 200 && res.status < 300 then Task.succeed res
-            else if res.status >= 400 && res.status < 500 then Task.fail (ClientError status)
-            else Task.fail (ServerError status)
+            else if res.status >= 400 && res.status < 500 then Task.fail (ClientError res.status res.statusText)
+            else Task.fail (ServerError res.status res.statusText)
 
         handleJsonDecoding res = case JsonDec.decodeString decoder bodyString of
             Err e -> Task.fail (DecodeError e)
