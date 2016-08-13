@@ -38,7 +38,7 @@ import Servant (FromHttpApiData(..))
 -- Our core types:
 --
 
-data Id = Id { unId :: String }
+newtype Id = Id String
     deriving (Show, Eq, Ord, Generic)
 
 instance ToJSON Id
@@ -168,12 +168,13 @@ instance FromJSON LoginInput where parseJSON = fromPrefix "login"
 data UserOutput = UserOutput
     { _uoUserName     :: String
     , _uoUserFullName :: String
+    , _uoUserType     :: UserType
     } deriving (Eq, Show, Generic)
 
 instance ToJSON UserOutput where toJSON = toPrefix "_uoUser"
 
 toUserOutput :: User -> UserOutput
-toUserOutput User{..} = UserOutput userName userFullName
+toUserOutput User{..} = UserOutput userName userFullName userType
 
 --
 -- handy JSON generic to/from funcs that strip prefixes, fixing

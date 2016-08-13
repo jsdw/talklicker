@@ -48,7 +48,7 @@ tryReadFileToMvar fileName mv = liftIO $ do
         file <- BL.readFile fileName
         case decode file of
             Just c  -> void (swapMVar mv c)
-            Nothing -> error "JSON file FB doesn't match expected schema; quitting."
+            Nothing -> error "JSON file for DB doesn't match expected schema; quitting."
 
 writeMVarToFile :: (MonadIO m, ToJSON v) => String -> MVar v -> m ()
 writeMVarToFile fileName mv = liftIO $ do

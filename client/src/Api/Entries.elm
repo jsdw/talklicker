@@ -37,7 +37,7 @@ entryDecoder = Dec.object8 Entry
     ("duration" := Dec.int)
     ("name" := Dec.string)
     ("description" := Dec.string)
-    ("entryType" := entryTypeDecoder)
+    ("type" := entryTypeDecoder)
     ("created" := Dec.int)
     ("modified" := Dec.int)
 

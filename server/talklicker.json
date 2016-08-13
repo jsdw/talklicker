@@ -1,0 +1,39 @@
+{
+	"users" : [
+		{
+			"name": "james",
+			"fullName": "James Wilson",
+			"type": "Admin",
+			"pass": "$2a$13$MfU2XykwaDK4DZflQZHuSuQPF1dZAUxphRkGwIZG8bX7tZGNjywhe"
+		},
+		{
+			"name": "bob",
+			"fullName": "Robert Robertson",
+			"type": "NormalUser",
+			"pass": "$2a$13$lt75F2p2c6sc91qdgtf5wuGEkX9nnpRhqicBrR4d1Ee1zx7aM4u2u"
+		}
+	],
+	"entries": [
+		{
+			"id" : "1aaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"user" : "james",
+			"duration" : 7200000,
+			"name" : "Talk About Stuff",
+			"description": "This is a talk about some stuff",
+			"type": "Talk",
+			"created": 1470900123464,
+			"modified": 1471072923464
+		},
+		{
+			"id" : "2aaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"user" : "bob",
+			"duration" : 3600000,
+			"name" : "Bob Makes A Biscuit",
+			"description": "I have a go at making a biscuit",
+			"type": "Project",
+			"created": 1439536923464,
+			"modified": 1466752923464
+		}
+	],
+	"days" : []
+}

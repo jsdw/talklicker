@@ -65,9 +65,9 @@ dayRoutes      = getDays :<|> getDay :<|> setDay :<|> addDay :<|> removeDay
 -- LOGIN
 --
 
-type Login = "login" :> ReqBody '[JSON] LoginInput :> Post '[JSON] (Headers '[Header "Set-Cookie" String] ())
+type Login = "login" :> ReqBody '[JSON] LoginInput :> Post '[JSON] (Headers '[Header "Set-Cookie" String] UserOutput)
 
-login :: LoginInput -> Application (Headers '[Header "Set-Cookie" String] ())
+login :: LoginInput -> Application (Headers '[Header "Set-Cookie" String] UserOutput)
 login LoginInput{..} = do
 
     sess <- getSessions
@@ -80,7 +80,7 @@ login LoginInput{..} = do
     throwIf (not isValidPass) err401
 
     sessId <- Sessions.create (loginName) sess
-    return $ addHeader (cookie "talklicker-session" sessId) ()
+    return $ addHeader (cookie "talklicker-session" sessId) (toUserOutput user)
 
   where
     cookie key val = key <> "=" <> val

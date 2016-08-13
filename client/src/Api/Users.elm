@@ -10,17 +10,17 @@ import Api exposing (..)
 --
 -- auth:
 --
-login : { a | name : String, pass : String } -> Task Error ()
-login details =
+login : String -> String -> Task Error User
+login name pass =
   let
     value = Enc.object
-        [ ("name", Enc.string details.name)
-        , ("pass", Enc.string details.pass) ]
+        [ ("name", Enc.string name)
+        , ("pass", Enc.string pass) ]
   in
-    request Post "login" (Just value) noResult
+    request Post ("core" :> "login") (Just value) userDecoder
 
 logout : Task Error ()
-logout = request Post "logout" Nothing noResult
+logout = request Post ("core" :> "logout") Nothing noResult
 
 --
 -- Get current user (Nothing if not logged in, Just User if we are)
