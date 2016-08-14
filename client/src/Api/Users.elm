@@ -71,13 +71,13 @@ toUserType str =
 -- Set user
 --
 
-set : String -> { a | fullName : Maybe String, pass : Maybe String, userType : Maybe String } -> Task Error User
+set : String -> { a | fullName : String, pass : Maybe String, userType : String } -> Task Error User
 set username details =
   let
     value = Enc.object
-        [ ("name", Enc.string ?= details.fullName)
-        , ("fullName", Enc.string ?= details.pass)
-        , ("type", Enc.string ?= details.userType) ]
+        [ ("fullName", Enc.string details.fullName)
+        , ("pass", Enc.string ?= details.pass)
+        , ("type", Enc.string details.userType) ]
   in
     request Post ("users" :> username) (Just value) userDecoder
 

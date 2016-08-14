@@ -12,7 +12,7 @@ import Material.Options as Options exposing (when, css)
 import Material.Icon as Icon
 
 import Api
-import Api.Entries as Entries exposing (Entry)
+import Api.Entries as Entries exposing (Entry, EntryType(..))
 import Api.Users as Users exposing (User)
 
 --
@@ -30,6 +30,14 @@ model =
     -- login modal:
     , loginUserName = ""
     , loginPassword = ""
+
+    -- entry stuff for add/edit:
+    , entryId = ""
+    , entryUser = ""
+    , entryDuration = 3600000
+    , entryName = ""
+    , entryDescription = ""
+    , entryType = Talk
     }
 
 type alias Model =
@@ -42,6 +50,15 @@ type alias Model =
     -- login modal:
     , loginUserName : String
     , loginPassword : String
+
+    -- entry stuff for add/edit:
+    , entryId : String
+    , entryUser : String
+    , entryDuration : Int
+    , entryName : String
+    , entryDescription : String
+    , entryType : EntryType
+
     }
 
 --
@@ -59,29 +76,109 @@ type Msg
     | ShowLoginModal
     | LoginUserName String
     | LoginPassword String
-    | AttemptLogin
+    | DoLogin
 
+    -- add/edit entry modal:
     | ShowAddEntryModal
+    | ShowEditEntryModal Entry
+    | UpdateEntryName Int
+    | UpdateEntryDescription String
+    | UpdateEntryType EntryType
+    | UpdateEntryDuration Int
+    | DoAddEntry
+    | DoEditEntry
+
+    -- remove entry alert/action
+    | ShowRemoveEntryModal Entry
+    | DoRemoveEntry
+
     | Noop
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model = case Debug.log "update" msg of
     Mdl msg' -> Material.update msg' model
 
-    ApiError error -> ({ model | error = toString error }, Cmd.none)
-    CurrentUser mUser -> ({ model | user = mUser }, Cmd.none)
-    UpdateEntries es -> ({ model | entries = es }, Cmd.none)
-    LogOut -> ({ model | user = Nothing }, Cmd.none)
+    ApiError error ->
+        { model | error = toString error } ! []
+    CurrentUser mUser ->
+        { model | user = mUser } ! []
+    UpdateEntries es ->
+        { model | entries = es } ! []
+    LogOut ->
+        { model | user = Nothing } ! []
 
     -- login modal:
-    ShowLoginModal -> ({ model | modals = model.modals ++ [LoginModal] }, Cmd.none)
-    LoginUserName str -> ({ model | loginUserName = str }, Cmd.none)
-    LoginPassword str -> ({ model | loginPassword = str }, Cmd.none)
-    AttemptLogin -> ({ model | loginUserName = "", loginPassword = "" }, doLogin model.loginUserName model.loginPassword)
+    ShowLoginModal ->
+        { model | modals = model.modals ++ [LoginModal] } ! []
+    LoginUserName str ->
+        { model | loginUserName = str } ! []
+    LoginPassword str ->
+        { model | loginPassword = str } ! []
+    DoLogin ->
+      let
+        loginCmd = doLogin model
+        model' = { model | loginUserName = "", loginPassword = "" }
+      in
+        (model', loginCmd)
 
-    ShowAddEntryModal -> ({ model | modals = model.modals ++ [AddEntryModal] }, Cmd.none)
+    -- add/edit entry modals:
+    ShowAddEntryModal ->
+        (prepareModelForAddEntry { model | modals = model.modals ++ [AddEntryModal] }) ! []
+    ShowEditEntryModal entry ->
+        (prepareModelForEditEntry entry { model | modals = model.modals ++ [EditEntryModal] }) ! []
+    UpdateEntryName val ->
+        model ! [] -- TODO Finish!
+    UpdateEntryDescription val ->
+        model ! [] -- TODO Finish!
+    UpdateEntryType val ->
+        model ! [] -- TODO Finish!
+    UpdateEntryDuration val ->
+        model ! [] -- TODO Finish!
+    DoAddEntry ->
+        model ! [] -- TODO Finish!
+    DoEditEntry ->
+        model ! [] -- TODO Finish!
+
+    -- remove an entry
+    ShowRemoveEntryModal entry ->
+        (prepareModelForEditEntry entry { model | modals = model.modals ++ [RemoveEntryModal] }) ! []
+    DoRemoveEntry ->
+        model ! [] -- TODO Finish!
 
     Noop -> (model, Cmd.none)
+
+prepareModelForAddEntry : Model -> Model
+prepareModelForAddEntry model =
+  let
+    doUpdate user =
+        { model
+        | entryUser = user.name
+        , entryDuration = 3600000
+        , entryName = ""
+        , entryDescription = ""
+        , entryType = Talk
+        }
+  in
+    case model.user of
+        Nothing -> model
+        Just u -> doUpdate u
+
+prepareModelForEditEntry : Entry -> Model -> Model
+prepareModelForEditEntry entry model =
+    { model
+    | entryUser = entry.user
+    , entryDuration = entry.duration
+    , entryName = entry.name
+    , entryDescription = entry.description
+    , entryType = entry.entryType
+    }
+
+doLogin : Model -> Cmd Msg
+doLogin model =
+  let
+    login = Users.login model.loginUserName model.loginPassword |> Task.map Just
+  in
+    Task.perform ApiError CurrentUser login
 
 
 --
@@ -135,10 +232,15 @@ button' attrs children =
 showModal : Model -> ModalName -> Html Msg
 showModal model modalName =
   let
-    makeModal html =
+    makeModal (title, content) =
         div [ class "modal-background" ]
             [ div [ class "modal-inner" ]
-                [ html
+                [ div [ class "title" ]
+                    [ div [ class "title-inner" ] [ title ]
+                    , div [ class "closer" ] []
+                    ]
+                , div [ class "content" ]
+                    [ content ]
                 ]
             ]
   in
@@ -146,38 +248,75 @@ showModal model modalName =
         ErrorModal -> makeModal (errorModal model)
         LoginModal -> makeModal (loginModal model)
         AddEntryModal -> makeModal (addEntryModal model)
+        EditEntryModal -> makeModal (editEntryModal model)
+        RemoveEntryModal -> makeModal (removeEntryModal model)
 
 type ModalName
     = ErrorModal
     | LoginModal
     | AddEntryModal
+    | EditEntryModal
+    | RemoveEntryModal
 
-errorModal : Model -> Html Msg
+errorModal : Model -> (Html Msg, Html Msg)
 errorModal model =
-    div [ class "error-modal" ]
-        [ text (toString model.error) ]
-
-loginModal : Model -> Html Msg
-loginModal model =
-    div [ class "login-modal" ]
-        [ div [ class "inputs" ]
-            [ input [ placeholder "username", onInput LoginUserName, defaultValue model.loginUserName ] []
-            , input [ placeholder "password", type' "password", onInput LoginPassword, defaultValue model.loginPassword ] []
-            ]
-        , div [ class "login-button" ]
-            [ button' [ onClick AttemptLogin ] [ text "Login" ]
-            ]
-        ]
-
-addEntryModal : Model -> Html Msg
-addEntryModal model = div [ class "add-entry-modal" ] []
-
-doLogin : String -> String -> Cmd Msg
-doLogin name pass =
   let
-    login = Users.login name pass |> Task.map Just
+    title =
+        text "Error"
+    content =
+        div [ class "error-modal" ]
+            [ text (toString model.error) ]
   in
-    Task.perform ApiError CurrentUser login
+    (title, content)
+
+loginModal : Model -> (Html Msg, Html Msg)
+loginModal model =
+  let
+    title =
+        text "Login"
+    content =
+        div [ class "login-modal" ]
+            [ div [ class "inputs" ]
+                [ input [ placeholder "username", onInput LoginUserName, defaultValue model.loginUserName ] []
+                , input [ placeholder "password", type' "password", onInput LoginPassword, defaultValue model.loginPassword ] []
+                ]
+            , div [ class "login-button" ]
+                [ button' [ onClick DoLogin ] [ text "Login" ]
+                ]
+            ]
+  in
+    (title, content)
+
+addEntryModal : Model -> (Html Msg, Html Msg)
+addEntryModal model =
+  let
+    title =
+        text "Add an entry"
+    content =
+        div [ class "add-entry-modal" ] []
+  in
+    (title, content)
+
+editEntryModal : Model -> (Html Msg, Html Msg)
+editEntryModal model =
+  let
+    title =
+        text ("Edit entry " ++ model.entryName)
+    content =
+        div [ class "edit-entry-modal" ] []
+  in
+    (title, content)
+
+removeEntryModal : Model -> (Html Msg, Html Msg)
+removeEntryModal model =
+  let
+    title =
+        text ("Remove " ++ model.entryName)
+    content =
+        div [ class "remove-entry-modal" ] []
+  in
+    (title, content)
+
 --
 -- Main
 --
