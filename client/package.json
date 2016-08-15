@@ -1,0 +1,31 @@
+{
+  "name": "talklicker",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build:init": "../scripts/client-build-static.sh",
+    "build:elm": "npm run build:init && elm make src/elm/Main.elm --warn --yes --output build/app.js",
+    "build:scss": "npm run build:init && node-sass --output-style compressed src/scss/app.scss build/app.css",
+    "build": "npm run build:elm & npm run build:scss",
+    "clean": "rm -rf build",
+    "watch:scss": "onchange 'src/scss/**/*' -- npm run build:scss",
+    "watch:elm": "onchange 'src/elm/**/*' -- npm run build:elm",
+    "watch": "npm run watch:scss & npm run watch:elm"
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://github.com/jsdw/talklicker"
+  },
+  "author": "James Wilson",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jsdw/talklicker/issues"
+  },
+  "homepage": "https://github.com/jsdw/talklicker",
+  "devDependencies": {
+    "autoprefixer": "^6.4.0",
+    "node-sass": "^3.8.0",
+    "onchange": "^2.5.0"
+  }
+}
