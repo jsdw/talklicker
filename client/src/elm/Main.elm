@@ -98,6 +98,9 @@ type Msg
     | DoRemoveEntry Entry
     | DoneRemoveEntry
 
+    -- perform several actions at once
+    | All (List Msg)
+
     | CloseTopModal
 
     -- | Mdl (Material.Msg Msg)
@@ -128,9 +131,9 @@ update msg model = case Debug.log "update" msg of
 
     -- add/edit entry modals:
     ShowAddEntryModal ->
-        prepareModelForAddEntry { model | modals = model.modals ++ [AddEntryModal] } ! []
+        prepareModelForAddEntry (showModal model AddEntryModal) ! []
     ShowEditEntryModal entry ->
-        prepareModelForEditEntry entry { model | modals = model.modals ++ [EditEntryModal] } ! []
+        prepareModelForEditEntry entry (showModal model EditEntryModal) ! []
     UpdateEntryName val ->
         { model | entryName = val } ! []
     UpdateEntryDescription val ->
@@ -153,7 +156,7 @@ update msg model = case Debug.log "update" msg of
 
     -- remove an entry
     ShowRemoveEntryModal entry ->
-        prepareModelForEditEntry entry { model | modals = model.modals ++ [RemoveEntryModal] } ! []
+        prepareModelForEditEntry entry (showModal model RemoveEntryModal) ! []
     DoRemoveEntry entry ->
       let
         entries' = List.filter (\e -> e.id /= entry.id) model.entries
@@ -164,10 +167,23 @@ update msg model = case Debug.log "update" msg of
     CloseTopModal ->
         closeTopModal model ! []
 
+    -- perform several actions eg cloing modal and logging in.
+    -- done one after the other.
+    All ms ->
+      let
+        folder msg (model,cmds) =
+          let (newModel, cmd) = update msg model
+          in (newModel, cmd :: cmds)
+        (newModel, cmds) = List.foldl folder (model,[]) ms
+      in
+        (newModel, Cmd.batch cmds)
+
+
     --Mdl msg' ->
     --    Material.update msg' model
 
-    Noop -> (model, Cmd.none)
+    Noop ->
+        (model, Cmd.none)
 
 prepareModelForAddEntry : Model -> Model
 prepareModelForAddEntry model =
@@ -195,11 +211,15 @@ prepareModelForEditEntry entry model =
     , entryType = entry.entryType
     }
 
+showModal : Model -> ModalName -> Model
+showModal model modal =
+    { model | modals = model.modals ++ [modal] }
+
 closeTopModal : Model -> Model
 closeTopModal model =
   let
     dropEnd l = case l of
-        (a :: b :: []) -> a :: [b]
+        (b :: []) -> []
         (a :: b) -> a :: dropEnd b
         [] -> []
   in
@@ -274,7 +294,7 @@ view model =
                     [ text "Add Entry" ]
                 ]
         , div [ class "entries" ] (entries model)
-        , div [ class "modals" ] (List.map (showModal model) model.modals)
+        , div [ class "modals" ] (List.map (renderModal model) model.modals)
         , text (toString model.error)
         ]
 
@@ -287,10 +307,11 @@ entries model =
 
 button' : List (Attribute a) -> List (Html a) -> Html a
 button' attrs children =
-    div ([ class "button" ] ++ attrs) children
+    div [ class "button" ]
+        [ div attrs children ]
 
-showModal : Model -> ModalName -> Html Msg
-showModal model modalName =
+renderModal : Model -> ModalName -> Html Msg
+renderModal model modalName =
   let
     makeModal (title, content) =
         div [ class "modal-background" ]
@@ -305,27 +326,27 @@ showModal model modalName =
             ]
   in
     case modalName of
-        ErrorModal -> makeModal (errorModal model)
+        ErrorModal str -> makeModal (errorModal model str)
         LoginModal -> makeModal (loginModal model)
         AddEntryModal -> makeModal (addEntryModal model)
         EditEntryModal -> makeModal (editEntryModal model)
         RemoveEntryModal -> makeModal (removeEntryModal model)
 
 type ModalName
-    = ErrorModal
+    = ErrorModal String
     | LoginModal
     | AddEntryModal
     | EditEntryModal
     | RemoveEntryModal
 
-errorModal : Model -> (Html Msg, Html Msg)
-errorModal model =
+errorModal : Model -> String -> (Html Msg, Html Msg)
+errorModal model err =
   let
     title =
         text "Error"
     content =
         div [ class "error-modal" ]
-            [ text (toString model.error) ]
+            [ text err ]
   in
     (title, content)
 
@@ -341,7 +362,7 @@ loginModal model =
                 , input [ placeholder "password", type' "password", onInput LoginPassword, defaultValue model.loginPassword ] []
                 ]
             , div [ class "login-button" ]
-                [ button' [ onClick DoLogin ] [ text "Login" ]
+                [ button' [ onClick (All [DoLogin, CloseTopModal]) ] [ text "Login" ]
                 ]
             ]
   in
