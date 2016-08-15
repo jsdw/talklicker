@@ -5,11 +5,11 @@ import Html exposing (..)
 import Task
 import Debug
 
-import Material
-import Material.Scheme
-import Material.List as Lists
-import Material.Options as Options exposing (when, css)
-import Material.Icon as Icon
+--import Material
+--import Material.Scheme
+--import Material.List as Lists
+--import Material.Options as Options exposing (when, css)
+--import Material.Icon as Icon
 
 import Api
 import Api.Entries as Entries exposing (Entry, EntryType(..))
@@ -21,8 +21,7 @@ import Api.Users as Users exposing (User)
 
 model : Model
 model =
-    { mdl = Material.model
-    , entries = []
+    { entries = []
     , modals = []
     , error = ""
     , user = Nothing
@@ -38,11 +37,13 @@ model =
     , entryName = ""
     , entryDescription = ""
     , entryType = Talk
+    , entrySaving = False
+
+    --, mdl = Material.model
     }
 
 type alias Model =
-    { mdl : Material.Model
-    , entries : List Entry
+    { entries : List Entry
     , modals : List ModalName
     , error : String
     , user : Maybe User
@@ -58,6 +59,9 @@ type alias Model =
     , entryName : String
     , entryDescription : String
     , entryType : EntryType
+    , entrySaving : Bool
+
+    -- , mdl : Material.Model
 
     }
 
@@ -66,8 +70,7 @@ type alias Model =
 --
 
 type Msg
-    = Mdl (Material.Msg Msg)
-    | ApiError Api.Error
+    = ApiError Api.Error
     | UpdateEntries (List Entry)
     | CurrentUser (Maybe User)
     | LogOut
@@ -81,22 +84,28 @@ type Msg
     -- add/edit entry modal:
     | ShowAddEntryModal
     | ShowEditEntryModal Entry
-    | UpdateEntryName Int
+    | UpdateEntryName String
     | UpdateEntryDescription String
     | UpdateEntryType EntryType
     | UpdateEntryDuration Int
     | DoAddEntry
+    | DoneAddEntry Entry
     | DoEditEntry
+    | DoneEditEntry Entry
 
     -- remove entry alert/action
     | ShowRemoveEntryModal Entry
-    | DoRemoveEntry
+    | DoRemoveEntry Entry
+    | DoneRemoveEntry
+
+    | CloseTopModal
+
+    -- | Mdl (Material.Msg Msg)
 
     | Noop
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model = case Debug.log "update" msg of
-    Mdl msg' -> Material.update msg' model
 
     ApiError error ->
         { model | error = toString error } ! []
@@ -115,35 +124,48 @@ update msg model = case Debug.log "update" msg of
     LoginPassword str ->
         { model | loginPassword = str } ! []
     DoLogin ->
-      let
-        loginCmd = doLogin model
-        model' = { model | loginUserName = "", loginPassword = "" }
-      in
-        (model', loginCmd)
+        { model | loginUserName = "", loginPassword = "" } ! [doLogin model]
 
     -- add/edit entry modals:
     ShowAddEntryModal ->
-        (prepareModelForAddEntry { model | modals = model.modals ++ [AddEntryModal] }) ! []
+        prepareModelForAddEntry { model | modals = model.modals ++ [AddEntryModal] } ! []
     ShowEditEntryModal entry ->
-        (prepareModelForEditEntry entry { model | modals = model.modals ++ [EditEntryModal] }) ! []
+        prepareModelForEditEntry entry { model | modals = model.modals ++ [EditEntryModal] } ! []
     UpdateEntryName val ->
-        model ! [] -- TODO Finish!
+        { model | entryName = val } ! []
     UpdateEntryDescription val ->
-        model ! [] -- TODO Finish!
+        { model | entryDescription = val } ! []
     UpdateEntryType val ->
-        model ! [] -- TODO Finish!
+        { model | entryType = val } ! []
     UpdateEntryDuration val ->
-        model ! [] -- TODO Finish!
+        { model | entryDuration = val } ! []
     DoAddEntry ->
-        model ! [] -- TODO Finish!
+        { model | entrySaving = True } ! [doAddEntry model]
+    DoneAddEntry entry ->
+        closeTopModal { model | entries = model.entries ++ [entry], entrySaving = False } ! []
     DoEditEntry ->
-        model ! [] -- TODO Finish!
+        { model | entrySaving = True } ! [doEditEntry model]
+    DoneEditEntry entry ->
+      let
+        entries' = List.map (\e -> if e.id == entry.id then entry else e) model.entries
+      in
+        closeTopModal { model | entries = entries', entrySaving = False } ! []
 
     -- remove an entry
     ShowRemoveEntryModal entry ->
-        (prepareModelForEditEntry entry { model | modals = model.modals ++ [RemoveEntryModal] }) ! []
-    DoRemoveEntry ->
-        model ! [] -- TODO Finish!
+        prepareModelForEditEntry entry { model | modals = model.modals ++ [RemoveEntryModal] } ! []
+    DoRemoveEntry entry ->
+      let
+        entries' = List.filter (\e -> e.id /= entry.id) model.entries
+      in
+        { model | entries = entries' } ! [doRemoveEntry model]
+    DoneRemoveEntry ->
+        model ! [] -- Do nothing at the mo.
+    CloseTopModal ->
+        closeTopModal model ! []
+
+    --Mdl msg' ->
+    --    Material.update msg' model
 
     Noop -> (model, Cmd.none)
 
@@ -173,6 +195,18 @@ prepareModelForEditEntry entry model =
     , entryType = entry.entryType
     }
 
+closeTopModal : Model -> Model
+closeTopModal model =
+  let
+    dropEnd l = case l of
+        (a :: b :: []) -> a :: [b]
+        (a :: b) -> a :: dropEnd b
+        [] -> []
+  in
+    { model
+    | modals = dropEnd model.modals
+    }
+
 doLogin : Model -> Cmd Msg
 doLogin model =
   let
@@ -180,13 +214,39 @@ doLogin model =
   in
     Task.perform ApiError CurrentUser login
 
+entryishFromModel model =
+    { id = model.entryId
+    , user = model.entryUser
+    , duration = model.entryDuration
+    , name = model.entryName
+    , description = model.entryDescription
+    , entryType = model.entryType
+    }
+
+doAddEntry : Model -> Cmd Msg
+doAddEntry model =
+  let
+    entry = entryishFromModel model
+  in
+    Task.perform ApiError DoneAddEntry (Entries.add entry)
+
+doEditEntry : Model -> Cmd Msg
+doEditEntry model =
+  let
+    entry = entryishFromModel model
+  in
+    Task.perform ApiError DoneEditEntry (Entries.set entry)
+
+doRemoveEntry : Model -> Cmd Msg
+doRemoveEntry model =
+  Task.perform ApiError (\_ -> DoneRemoveEntry) (Entries.remove model.entryId)
 
 --
 -- View
 --
 
-type alias Mdl =
-  Material.Model
+--type alias Mdl =
+--  Material.Model
 
 view : Model -> Html Msg
 view model =
@@ -237,7 +297,7 @@ showModal model modalName =
             [ div [ class "modal-inner" ]
                 [ div [ class "title" ]
                     [ div [ class "title-inner" ] [ title ]
-                    , div [ class "closer" ] []
+                    , div [ class "closer", onClick CloseTopModal ] []
                     ]
                 , div [ class "content" ]
                     [ content ]
