@@ -5,11 +5,13 @@ import Html exposing (..)
 import Task
 import Debug
 
---import Material
+import Material
 --import Material.Scheme
 --import Material.List as Lists
---import Material.Options as Options exposing (when, css)
---import Material.Icon as Icon
+import Material.Options as Options exposing (when, css)
+import Material.Icon as Icon
+import Material.Button as Button
+import Material.Textfield as Textfield
 
 import Api
 import Api.Entries as Entries exposing (Entry, EntryType(..))
@@ -29,6 +31,8 @@ model =
     -- login modal:
     , loginUserName = ""
     , loginPassword = ""
+    , loggingIn = False
+    , loginFailed = False
 
     -- entry stuff for add/edit:
     , entryId = ""
@@ -39,7 +43,7 @@ model =
     , entryType = Talk
     , entrySaving = False
 
-    --, mdl = Material.model
+    , mdl = Material.model
     }
 
 type alias Model =
@@ -51,6 +55,8 @@ type alias Model =
     -- login modal:
     , loginUserName : String
     , loginPassword : String
+    , loggingIn : Bool
+    , loginFailed : Bool
 
     -- entry stuff for add/edit:
     , entryId : String
@@ -61,7 +67,7 @@ type alias Model =
     , entryType : EntryType
     , entrySaving : Bool
 
-    -- , mdl : Material.Model
+    , mdl : Material.Model
 
     }
 
@@ -80,6 +86,9 @@ type Msg
     | LoginUserName String
     | LoginPassword String
     | DoLogin
+    | LoginFailed
+    | LoginSuccess User
+    | ClearLoginDetails
 
     -- add/edit entry modal:
     | ShowAddEntryModal
@@ -103,7 +112,7 @@ type Msg
 
     | CloseTopModal
 
-    -- | Mdl (Material.Msg Msg)
+    | Mdl (Material.Msg Msg)
 
     | Noop
 
@@ -127,7 +136,13 @@ update msg model = case Debug.log "update" msg of
     LoginPassword str ->
         { model | loginPassword = str } ! []
     DoLogin ->
-        { model | loginUserName = "", loginPassword = "" } ! [doLogin model]
+        { model | loggingIn = True } ! [doLogin model]
+    LoginFailed ->
+        { model | loggingIn = False, loginFailed = True } ! []
+    LoginSuccess user ->
+        (resetLoginState <| closeTopModal { model | user = Just user }) ! []
+    ClearLoginDetails ->
+        resetLoginState model ! []
 
     -- add/edit entry modals:
     ShowAddEntryModal ->
@@ -179,8 +194,8 @@ update msg model = case Debug.log "update" msg of
         (newModel, Cmd.batch cmds)
 
 
-    --Mdl msg' ->
-    --    Material.update msg' model
+    Mdl msg' ->
+        Material.update msg' model
 
     Noop ->
         (model, Cmd.none)
@@ -230,9 +245,18 @@ closeTopModal model =
 doLogin : Model -> Cmd Msg
 doLogin model =
   let
-    login = Users.login model.loginUserName model.loginPassword |> Task.map Just
+    login = Users.login model.loginUserName model.loginPassword
   in
-    Task.perform ApiError CurrentUser login
+    Task.perform (\_ -> LoginFailed) LoginSuccess login
+
+resetLoginState : Model -> Model
+resetLoginState model =
+    { model
+    | loginUserName = ""
+    , loginPassword = ""
+    , loginFailed = False
+    , loggingIn = False
+    }
 
 entryishFromModel model =
     { id = model.entryId
@@ -265,8 +289,8 @@ doRemoveEntry model =
 -- View
 --
 
---type alias Mdl =
---  Material.Model
+type alias Mdl =
+  Material.Model
 
 view : Model -> Html Msg
 view model =
@@ -310,15 +334,105 @@ button' attrs children =
     div [ class "button" ]
         [ div attrs children ]
 
+errorModal : Model -> String -> ModalOptions Msg Model
+errorModal model err =
+    { defaultModalOptions
+    | title = text "Error"
+    , content =
+        div [ class "error-modal" ]
+            [ text err ]
+    }
+
+loginModal : Model -> ModalOptions Msg Model
+loginModal model =
+  let
+    invalid = model.loginUserName == "" || model.loginPassword == ""
+  in
+    { defaultModalOptions
+    | title = text "Login"
+    , onClose = Just ClearLoginDetails
+    , preventClose = \model -> model.loggingIn
+    , content =
+        div [ class "login-modal" ]
+            [ div [ class "inputs" ]
+                [ Textfield.render Mdl [70,0] model.mdl
+                    [ Textfield.label "Username"
+                    , Textfield.floatingLabel
+                    , Textfield.onInput LoginUserName
+                    , Textfield.value model.loginUserName
+                    ]
+                , Textfield.render Mdl [70,1] model.mdl
+                    [ Textfield.label "Password"
+                    , Textfield.floatingLabel
+                    , Textfield.password
+                    , Textfield.onInput LoginPassword
+                    , Textfield.value model.loginPassword
+                    ]
+                ]
+            , div [ class "login-button" ]
+                [ Button.render Mdl [0] model.mdl
+                    [ Button.raised
+                    , Button.colored
+                    , Button.disabled `when` invalid
+                    , Button.onClick (All [ClearLoginDetails, DoLogin])
+                    ]
+                    [ text "Login" ]
+                ]
+            ]
+    }
+
+addEntryModal : Model -> ModalOptions Msg Model
+addEntryModal model =
+    { defaultModalOptions
+    | title = text "Add Entry"
+    , content =
+        div [ class "add-entry-modal" ]
+            [ ]
+    }
+
+
+editEntryModal : Model -> ModalOptions Msg Model
+editEntryModal model =
+    { defaultModalOptions
+    | title = text "Edit Entry"
+    , content =
+        div [ class "edit-entry-modal" ]
+            [ ]
+    }
+
+removeEntryModal : Model -> ModalOptions Msg Model
+removeEntryModal model =
+    { defaultModalOptions
+    | title = text "Error"
+    , content =
+        div [ class "remove-entry-modal" ]
+            [ ]
+    }
+
+--
+-- View - Modal maker
+--
+
 renderModal : Model -> ModalName -> Html Msg
 renderModal model modalName =
   let
-    makeModal (title, content) =
+    makeModal {title,content,onClose,preventClose} =
+      let
+        closeMsgs = All ([CloseTopModal] ++ case onClose of
+            Nothing -> []
+            Just msg -> [msg])
+      in
         div [ class "modal-background" ]
             [ div [ class "modal-inner" ]
                 [ div [ class "title" ]
                     [ div [ class "title-inner" ] [ title ]
-                    , div [ class "closer", onClick CloseTopModal ] []
+                    , Button.render Mdl [100,0] model.mdl
+                        [ Button.icon
+                        , Button.plain
+                        , Button.onClick closeMsgs
+                        , Button.disabled `when` preventClose model
+                        ]
+                        [ Icon.i "close" ]
                     ]
                 , div [ class "content" ]
                     [ content ]
@@ -339,64 +453,20 @@ type ModalName
     | EditEntryModal
     | RemoveEntryModal
 
-errorModal : Model -> String -> (Html Msg, Html Msg)
-errorModal model err =
-  let
-    title =
-        text "Error"
-    content =
-        div [ class "error-modal" ]
-            [ text err ]
-  in
-    (title, content)
+type alias ModalOptions msg model =
+    { title : Html msg
+    , content : Html msg
+    , preventClose : model -> Bool
+    , onClose : Maybe msg
+    }
 
-loginModal : Model -> (Html Msg, Html Msg)
-loginModal model =
-  let
-    title =
-        text "Login"
-    content =
-        div [ class "login-modal" ]
-            [ div [ class "inputs" ]
-                [ input [ placeholder "username", onInput LoginUserName, defaultValue model.loginUserName ] []
-                , input [ placeholder "password", type' "password", onInput LoginPassword, defaultValue model.loginPassword ] []
-                ]
-            , div [ class "login-button" ]
-                [ button' [ onClick (All [DoLogin, CloseTopModal]) ] [ text "Login" ]
-                ]
-            ]
-  in
-    (title, content)
-
-addEntryModal : Model -> (Html Msg, Html Msg)
-addEntryModal model =
-  let
-    title =
-        text "Add an entry"
-    content =
-        div [ class "add-entry-modal" ] []
-  in
-    (title, content)
-
-editEntryModal : Model -> (Html Msg, Html Msg)
-editEntryModal model =
-  let
-    title =
-        text ("Edit entry " ++ model.entryName)
-    content =
-        div [ class "edit-entry-modal" ] []
-  in
-    (title, content)
-
-removeEntryModal : Model -> (Html Msg, Html Msg)
-removeEntryModal model =
-  let
-    title =
-        text ("Remove " ++ model.entryName)
-    content =
-        div [ class "remove-entry-modal" ] []
-  in
-    (title, content)
+defaultModalOptions : ModalOptions Msg Model
+defaultModalOptions =
+    { title = text ""
+    , content = div [] []
+    , preventClose = \_ -> False
+    , onClose = Nothing
+    }
 
 --
 -- Main
