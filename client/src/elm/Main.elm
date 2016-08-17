@@ -8,14 +8,15 @@ import Debug
 import Material
 --import Material.Scheme
 --import Material.List as Lists
-import Material.Options as Options exposing (when, css)
+import Material.Options as Options exposing (when, css, cs)
 import Material.Icon as Icon
 import Material.Button as Button
 import Material.Textfield as Textfield
+import Material.Progress as Loading
 
 import Api
 import Api.Entries as Entries exposing (Entry, EntryType(..))
-import Api.Users as Users exposing (User)
+import Api.Users as Users exposing (User, LoginError(..))
 
 --
 -- Model
@@ -32,7 +33,7 @@ model =
     , loginUserName = ""
     , loginPassword = ""
     , loggingIn = False
-    , loginFailed = False
+    , loginError = Nothing
 
     -- entry stuff for add/edit:
     , entryId = ""
@@ -56,7 +57,7 @@ type alias Model =
     , loginUserName : String
     , loginPassword : String
     , loggingIn : Bool
-    , loginFailed : Bool
+    , loginError : Maybe LoginError
 
     -- entry stuff for add/edit:
     , entryId : String
@@ -86,7 +87,7 @@ type Msg
     | LoginUserName String
     | LoginPassword String
     | DoLogin
-    | LoginFailed
+    | LoginFailed LoginError
     | LoginSuccess User
     | ClearLoginDetails
 
@@ -136,9 +137,9 @@ update msg model = case Debug.log "update" msg of
     LoginPassword str ->
         { model | loginPassword = str } ! []
     DoLogin ->
-        { model | loggingIn = True } ! [doLogin model]
-    LoginFailed ->
-        { model | loggingIn = False, loginFailed = True } ! []
+        { model | loggingIn = True, loginError = Nothing } ! [doLogin model]
+    LoginFailed err ->
+        { model | loggingIn = False, loginError = Just err } ! []
     LoginSuccess user ->
         (resetLoginState <| closeTopModal { model | user = Just user }) ! []
     ClearLoginDetails ->
@@ -247,14 +248,14 @@ doLogin model =
   let
     login = Users.login model.loginUserName model.loginPassword
   in
-    Task.perform (\_ -> LoginFailed) LoginSuccess login
+    Task.perform LoginFailed LoginSuccess login
 
 resetLoginState : Model -> Model
 resetLoginState model =
     { model
     | loginUserName = ""
     , loginPassword = ""
-    , loginFailed = False
+    , loginError = Nothing
     , loggingIn = False
     }
 
@@ -347,11 +348,16 @@ loginModal : Model -> ModalOptions Msg Model
 loginModal model =
   let
     invalid = model.loginUserName == "" || model.loginPassword == ""
+    loginErrorString = case model.loginError of
+        Just LoginBadUser -> "Wrong username"
+        Just LoginBadPassword -> "Wrong password"
+        _ -> ""
   in
     { defaultModalOptions
     | title = text "Login"
     , onClose = Just ClearLoginDetails
     , preventClose = \model -> model.loggingIn
+    , isLoading = \model -> model.loggingIn
     , content =
         div [ class "login-modal" ]
             [ div [ class "inputs" ]
@@ -369,14 +375,18 @@ loginModal model =
                     , Textfield.value model.loginPassword
                     ]
                 ]
-            , div [ class "login-button" ]
+            , div [ class "bottom-row" ]
                 [ Button.render Mdl [0] model.mdl
                     [ Button.raised
                     , Button.colored
                     , Button.disabled `when` invalid
-                    , Button.onClick (All [ClearLoginDetails, DoLogin])
+                    , Button.onClick DoLogin
+                    , cs "login-button"
                     ]
                     [ text "Login" ]
+                , model.loginError ??
+                    div [ class "error" ]
+                        [ text loginErrorString ]
                 ]
             ]
     }
@@ -416,7 +426,7 @@ removeEntryModal model =
 renderModal : Model -> ModalName -> Html Msg
 renderModal model modalName =
   let
-    makeModal {title,content,onClose,preventClose} =
+    makeModal {title,content,onClose,preventClose,isLoading} =
       let
         closeMsgs = All ([CloseTopModal] ++ case onClose of
             Nothing -> []
@@ -433,9 +443,14 @@ renderModal model modalName =
                         , Button.disabled `when` preventClose model
                         ]
                         [ Icon.i "close" ]
+                    , isLoading model ?
+                        div [ class "loading-overlay" ]
+                            [ Loading.indeterminate
+                            ]
                     ]
                 , div [ class "content" ]
-                    [ content ]
+                    [ content
+                    ]
                 ]
             ]
   in
@@ -457,6 +472,7 @@ type alias ModalOptions msg model =
     { title : Html msg
     , content : Html msg
     , preventClose : model -> Bool
+    , isLoading : model -> Bool
     , onClose : Maybe msg
     }
 
@@ -465,6 +481,7 @@ defaultModalOptions =
     { title = text ""
     , content = div [] []
     , preventClose = \_ -> False
+    , isLoading = \_ -> False
     , onClose = Nothing
     }
 
@@ -500,4 +517,9 @@ isJust m = case m of
     Just _ -> True
 
 (?) : Bool -> Html a -> Html a
-(?) b html = if b then html else Html.node "nothing" [ style [("position", "absolute"), ("display", "none")] ] []
+(?) b html = if b then html else noNode
+
+(??) : Maybe m -> Html a -> Html a
+(??) m html = if isJust m then html else noNode
+
+noNode = Html.node "nothing" [ style [("position", "absolute"), ("display", "none")] ] []

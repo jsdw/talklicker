@@ -71,13 +71,13 @@ login :: LoginInput -> Application (Headers '[Header "Set-Cookie" String] UserOu
 login LoginInput{..} = do
 
     sess <- getSessions
-    user <- getUserOr loginName (throwError err401)
+    user <- getUserOr loginName (throwError err401{ errReasonPhrase = "BAD_USER" })
 
     -- if pass not set (empty passHash) or pass provided matches passHash, it's valid.
     let isValidPass = if null (userPass user) then True
                       else validatePassword (Bytes.pack loginPass) (Bytes.pack $ userPass user)
 
-    throwIf (not isValidPass) err401
+    throwIf (not isValidPass) err401{ errReasonPhrase = "BAD_PASSWORD" }
 
     sessId <- Sessions.create (loginName) sess
     return $ addHeader (cookie "talklicker-session" sessId) (toUserOutput user)

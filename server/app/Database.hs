@@ -8,6 +8,7 @@ import qualified Data.ByteString.Lazy.Char8 as BL
 
 import Data.Aeson (FromJSON, ToJSON, encode, decode)
 import Data.Default (Default, def)
+import Data.Monoid ((<>))
 import Control.Monad (void)
 import Control.Monad.Trans (MonadIO, liftIO)
 import System.IO.Error (isDoesNotExistError)
@@ -42,7 +43,9 @@ tryReadFileToMvar fileName mv = liftIO $ do
     tryInitialRead `catch` doesNotExist
   where
     doesNotExist e
-        | isDoesNotExistError e = return ()
+        | isDoesNotExistError e = do
+            putStrLn (fileName <> " does not exist; will create as needed")
+            return ()
         | otherwise = throwIO e
     tryInitialRead = do
         file <- BL.readFile fileName

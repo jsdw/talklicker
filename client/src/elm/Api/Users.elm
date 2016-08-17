@@ -1,4 +1,4 @@
-module Api.Users exposing (login, logout, get, set, current, User, UserType(..))
+module Api.Users exposing (login, LoginError(..), logout, get, set, current, User, UserType(..))
 
 import Json.Encode as Enc exposing (Value, null)
 import Json.Decode as Dec exposing (Decoder, (:=))
@@ -10,7 +10,7 @@ import Api exposing (..)
 --
 -- auth:
 --
-login : String -> String -> Task Error User
+login : String -> String -> Task LoginError User
 login name pass =
   let
     value = Enc.object
@@ -18,9 +18,15 @@ login name pass =
         , ("pass", Enc.string pass) ]
   in
     request Post ("core" :> "login") (Just value) userDecoder
+        `Task.onError` (\err -> case err of
+            ClientError 401 "BAD_USER" -> Task.fail LoginBadUser
+            ClientError 401 "BAD_PASSWORD" -> Task.fail LoginBadPassword
+            err -> Task.fail (LoginOther err))
 
 logout : Task Error ()
 logout = request Post ("core" :> "logout") Nothing noResult
+
+type LoginError = LoginBadUser | LoginBadPassword | LoginOther Error
 
 --
 -- Get current user (Nothing if not logged in, Just User if we are)

@@ -44,6 +44,22 @@ body, html {
 		display: flex;
 		flex-direction: column;
 	}
+	.bottom-row {
+		display: flex;
+		align-items: center;
+		> .error {
+			flex-grow: 1;
+			margin-left: 1em;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			background-color: #ff8989;
+			align-self: stretch;
+			border-radius: 2px;
+			color: black;
+			border-left: 3px solid red;
+		}
+	}
 }
 
 .modal-background {
@@ -62,6 +78,7 @@ body, html {
 
 		background-color: white;
 		border-radius: 3px;
+		position: relative;
 
 		> .title {
 			padding: 0.5em 1em;
@@ -71,6 +88,7 @@ body, html {
 			display: flex;
 			justify-content: space-between;
 			align-items: center;
+			position: relative;
 
 			> .closer {
 				height: 1em;
@@ -78,10 +96,18 @@ body, html {
 				background-color: red;
 			}
 
+			> .loading-overlay {
+				position: absolute;
+				bottom: -2px;
+				width: 100%;
+				left: 0;
+			}
+
 		}
 
 		> .content {
-			0.5em 1em 1em 1em;
+			padding: 0.5em 1em 1em 1em;
+			position: relative;
 		}
 
 	}
