@@ -4,6 +4,7 @@ import Json.Encode as Enc exposing (Value, null)
 import Json.Decode as Dec exposing (Decoder, (:=))
 import Task exposing (Task)
 import String
+import Dict exposing (Dict)
 
 import Api exposing (..)
 
@@ -43,8 +44,12 @@ current = request Get ("users" :> "current") Nothing userDecoder
 -- Get users:
 --
 
-get : Task Error (List User)
-get = request Get "users" Nothing usersDecoder
+get : Task Error (Dict String User)
+get =
+  let
+    toDict = \us -> List.foldl (\u d -> Dict.insert u.name u d) Dict.empty us
+  in
+    Task.map toDict (request Get "users" Nothing usersDecoder)
 
 type alias User =
     { name : String

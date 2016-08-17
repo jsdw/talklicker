@@ -2,8 +2,9 @@ import Html.App
 import Html.Events exposing (..)
 import Html.Attributes exposing (..)
 import Html exposing (..)
-import Task
+import Task exposing (Task)
 import Debug
+import Dict exposing (Dict)
 
 import Material
 --import Material.Scheme
@@ -24,7 +25,10 @@ import Api.Users as Users exposing (User, LoginError(..))
 
 model : Model
 model =
-    { entries = []
+    { loading = True
+
+    , entries = []
+    , users = Dict.empty
     , modals = []
     , error = ""
     , user = Nothing
@@ -48,7 +52,10 @@ model =
     }
 
 type alias Model =
-    { entries : List Entry
+    { loading : Bool
+
+    , entries : List Entry
+    , users : Dict String User
     , modals : List ModalName
     , error : String
     , user : Maybe User
@@ -78,8 +85,7 @@ type alias Model =
 
 type Msg
     = ApiError Api.Error
-    | UpdateEntries (List Entry)
-    | CurrentUser (Maybe User)
+    | UpdateCoreDetails CoreDetails
     | LogOut
 
     -- login modal:
@@ -121,11 +127,9 @@ update : Msg -> Model -> (Model, Cmd Msg)
 update msg model = case Debug.log "update" msg of
 
     ApiError error ->
-        { model | error = toString error } ! []
-    CurrentUser mUser ->
-        { model | user = mUser } ! []
-    UpdateEntries es ->
-        { model | entries = es } ! []
+        { model | loading = False, error = toString error } ! []
+    UpdateCoreDetails core ->
+        { model | loading = False, user = core.currentUser, entries = core.entries, users = core.users } ! []
     LogOut ->
         { model | user = Nothing } ! []
 
@@ -312,6 +316,10 @@ view model =
                     button' [ onClick ShowLoginModal, class "login-button" ]
                         [ text "Log In" ]
                 ]
+            , model.loading ?
+                div [ class "loading-overlay" ]
+                    [ Loading.indeterminate
+                    ]
             ]
         , isLoggedIn ?
             div [ class "add-entry-area" ]
@@ -326,7 +334,25 @@ view model =
 entries : Model -> List (Html Msg)
 entries model =
   let
-    entry e = div [ class "entry" ] [ text e.name ]
+    entry e =
+      let
+        entryIcon = case e.entryType of
+            Talk -> Icon.i "insert_emoticon"
+            Project -> Icon.i "keyboard"
+        entryUser = case Dict.get e.user model.users of
+            Nothing -> "Unknown User"
+            Just u -> u.fullName
+        entryHours = round (toFloat e.duration / 3600000)
+      in
+        div [ class "entry" ]
+            [ div [ class "title" ]
+                [ div [ class "icon" ] [ entryIcon ]
+                , div [ class "text" ] [ text e.name ]
+                ]
+            , div [ class "description" ] [ text e.description ]
+            , div [ class "user"] [ text entryUser ]
+            , div [ class "duration" ] [ text <| (toString entryHours)++"h" ]
+            ]
   in
     List.map entry model.entries
 
@@ -500,12 +526,21 @@ main =
     }
 
 init : (Model, Cmd Msg)
-init =
+init = (model, updateEverything)
+
+type alias CoreDetails =
+    { currentUser : Maybe User, entries : List Entry, users : Dict String User }
+
+updateEverything : Cmd Msg
+updateEverything = Task.perform ApiError UpdateCoreDetails getEverything
+
+getEverything : Task Api.Error CoreDetails
+getEverything =
   let
-    currentUser = Task.perform ApiError CurrentUser Users.current
-    getEntries = Task.perform ApiError UpdateEntries Entries.get
+    fn = \curr entries users ->
+        { currentUser = curr, entries = entries, users = users }
   in
-    (model, Cmd.batch [getEntries, currentUser])
+    Task.map3 fn Users.current Entries.get Users.get
 
 --
 -- Utils

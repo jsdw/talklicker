@@ -9,12 +9,24 @@ body, html {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
+	position: relative;
 	color: white;
 	background-color: black;
 	padding: 0.5em 1em;
 
 	.button {
 		cursor: pointer;
+	}
+
+	.loading-overlay {
+		position: absolute;
+		bottom: -2px;
+		left: 0;
+		right: 0;
+
+		.mdl-progress {
+			width: auto;
+		}
 	}
 
 }
@@ -101,6 +113,9 @@ body, html {
 				bottom: -2px;
 				width: 100%;
 				left: 0;
+				.mdl-progress {
+					width: auto;
+				}
 			}
 
 		}
