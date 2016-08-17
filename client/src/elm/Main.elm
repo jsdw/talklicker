@@ -351,7 +351,7 @@ loginModal model =
     loginErrorString = case model.loginError of
         Just LoginBadUser -> "Wrong username"
         Just LoginBadPassword -> "Wrong password"
-        _ -> ""
+        _ -> "Network error"
   in
     { defaultModalOptions
     | title = text "Login"
