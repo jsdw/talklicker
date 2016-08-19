@@ -16,7 +16,7 @@ then mkdir build
 fi
 
 
-if [ ! -e "$(pwd)/build/static" ]
+if [ ! -e "$(pwd)/build/static" -a -e "$(pwd)/src/static" ]
 then
 	ln -s "$(pwd)/src/static" "$(pwd)/build/static"
 	echo "Linking static dir"

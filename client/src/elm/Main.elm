@@ -5,6 +5,7 @@ import Html exposing (..)
 import Task exposing (Task)
 import Debug
 import Dict exposing (Dict)
+import List
 
 import Material
 --import Material.Scheme
@@ -326,7 +327,10 @@ view model =
                 [ button' [ onClick ShowAddEntryModal, class "add-entry-button" ]
                     [ text "Add Entry" ]
                 ]
-        , div [ class "entries" ] (entries model)
+        , div [ class "entries" ] <|
+            if model.entries == [] 
+            then [ div [ class "no-entries" ] [ text "No entries have been added yet." ] ]
+            else entries model
         , div [ class "modals" ] (List.map (renderModal model) model.modals)
         , text (toString model.error)
         ]
