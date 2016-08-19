@@ -15,6 +15,7 @@ import Material.Icon as Icon
 import Material.Button as Button
 import Material.Textfield as Textfield
 import Material.Progress as Loading
+import Material.Toggles as Toggles
 
 import Api
 import Api.Entries as Entries exposing (Entry, EntryType(..))
@@ -431,10 +432,58 @@ addEntryModal model =
     { defaultModalOptions
     | title = text "Add Entry"
     , content =
-        div [ class "add-entry-modal" ]
-            [ ]
+        div [ class "entry-modal" ]
+            [ tr [ class "inputs" ]
+                [ inputRow "Title" <|
+                    Textfield.render Mdl [7,0] model.mdl
+                        [ Textfield.label "My Talk"
+                        , Textfield.onInput UpdateEntryName
+                        , Textfield.value model.entryName
+                        ]
+                , inputRow "Description" <|
+                    Textfield.render Mdl [7,1] model.mdl
+                        [ Textfield.label "Is about..."
+                        , Textfield.textarea
+                        , Textfield.rows 6
+                        , Textfield.onInput UpdateEntryDescription
+                        , Textfield.value model.entryDescription
+                        ]
+                , inputRow "Type" <|
+                    div [ class "type-inputs" ] 
+                        [ Toggles.radio Mdl [7,2] model.mdl 
+                            [ Toggles.value (model.entryType == Talk)
+                            , Toggles.group "EntryType"
+                            , Toggles.ripple
+                            , Toggles.onClick (UpdateEntryType Talk)
+                            ]
+                            [ text "Talk" ]
+                        , Toggles.radio Mdl [7,3] model.mdl
+                            [ Toggles.value (model.entryType == Project)
+                            , Toggles.group "EntryType"
+                            , Toggles.ripple
+                            , Toggles.onClick (UpdateEntryType Project)
+                            ]
+                            [ text "Project" ]
+                        ]
+                ]
+            , div [ class "bottom-row" ]
+                [ Button.render Mdl [0] model.mdl
+                    [ Button.raised
+                    , Button.colored
+                    , Button.onClick DoAddEntry
+                    , cs "add-entry-button"
+                    ]
+                    [ text "Add Entry" ]
+                ]
+            ]
     }
 
+inputRow : String -> Html a -> Html a
+inputRow title html =
+    tr [ class "input-row" ]
+        [ td [ class "input-name" ] [ text title ]
+        , td [ class "input-widget" ] [ html ]
+        ]
 
 editEntryModal : Model -> ModalOptions Msg Model
 editEntryModal model =
@@ -442,7 +491,8 @@ editEntryModal model =
     | title = text "Edit Entry"
     , content =
         div [ class "edit-entry-modal" ]
-            [ ]
+            [ 
+            ]
     }
 
 removeEntryModal : Model -> ModalOptions Msg Model

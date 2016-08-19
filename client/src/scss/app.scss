@@ -135,6 +135,48 @@ body, html {
 	}
 }
 
+.entry-modal {
+
+	padding-top: 15px;
+
+	> .inputs {
+
+		.input-name {
+			padding-right: 1em;
+		}
+		.input-row {
+			> .input-name {
+				vertical-align: top;
+			}
+			> .input-widget {
+				.type-inputs {
+					> *:not(:last-child) {
+						margin-right: 1em;
+					}
+				}
+				.mdl-textfield {
+					padding-top: 0;
+					.mdl-textfield__input {
+						padding-top: 0px;
+					}
+					.mdl-textfield__label {
+						top: 0px;
+					}
+				}
+			}
+		}
+
+	}
+
+	> .bottom-row {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		padding-top: 15px;
+	}
+
+}
+
 .modal-background {
 	position: absolute;
 	top: 0;
