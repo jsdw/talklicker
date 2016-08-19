@@ -46,7 +46,7 @@ maybeHasSession (AppState db sessions) req = do
     mSess <- runMaybeT $ do
 
         let cookies = parseCookiesFromReq req
-        sessId  <- liftMaybe $ Map.lookup "talklicker-session" cookies
+        sessId  <- liftMaybe $ Map.lookup "talklicker_session" cookies
         sessName <- liftMaybe =<< Sessions.get sessId sessions
         theDb   <- Database.read db
         user    <- liftMaybe $ List.find (\u -> userName u == sessName) (allUsers theDb)

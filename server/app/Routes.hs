@@ -80,10 +80,11 @@ login LoginInput{..} = do
     throwIf (not isValidPass) err401{ errReasonPhrase = "BAD_PASSWORD" }
 
     sessId <- Sessions.create (loginName) sess
-    return $ addHeader (cookie "talklicker-session" sessId) (toUserOutput user)
+    return $ addHeader (cookie "talklicker_session" sessId) (toUserOutput user)
 
   where
-    cookie key val = key <> "=" <> val
+    -- cookie lasts for a month and not accessible in http:
+    cookie key val = key <> "=" <> val <> "; Max-Age=2592000; Path=/; HttpOnly"
 
 --
 -- LOGOUT

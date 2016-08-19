@@ -31,6 +31,13 @@ body, html {
 
 }
 
+.add-entry-area {
+	display: flex;
+	align-items:center;
+	justify-content:center;
+	padding-top:1em;
+}
+
 .entries {
 	display: flex;
 	flex-direction: column;

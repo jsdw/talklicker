@@ -324,8 +324,13 @@ view model =
             ]
         , isLoggedIn ?
             div [ class "add-entry-area" ]
-                [ button' [ onClick ShowAddEntryModal, class "add-entry-button" ]
-                    [ text "Add Entry" ]
+                [ Button.render Mdl [0,1] model.mdl
+                    [ Button.raised
+                    , Button.colored
+                    , Button.ripple
+                    , Button.onClick ShowAddEntryModal
+                    ]
+                    [ text "Add Entry"]
                 ]
         , div [ class "entries" ] <|
             if model.entries == [] 
@@ -561,4 +566,5 @@ isJust m = case m of
 (??) : Maybe m -> Html a -> Html a
 (??) m html = if isJust m then html else noNode
 
+noNode : Html a
 noNode = Html.node "nothing" [ style [("position", "absolute"), ("display", "none")] ] []
