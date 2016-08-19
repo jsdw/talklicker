@@ -344,7 +344,7 @@ entries model =
             Talk -> Icon.i "insert_emoticon"
             Project -> Icon.i "keyboard"
         entryUser = case Dict.get e.user model.users of
-            Nothing -> "Unknown User"
+            Nothing -> "an Unknown User"
             Just u -> u.fullName
         entryHours = round (toFloat e.duration / 3600000)
       in
@@ -354,8 +354,8 @@ entries model =
                 , div [ class "text" ] [ text e.name ]
                 ]
             , div [ class "description" ] [ text e.description ]
-            , div [ class "user"] [ text entryUser ]
-            , div [ class "duration" ] [ text <| (toString entryHours)++"h" ]
+            , div [ class "user"] [ text ("By " ++ entryUser) ]
+            , div [ class "duration" ] [ span [] [ text <| (toString entryHours)++"h" ] ]
             ]
   in
     List.map entry model.entries
