@@ -61,7 +61,7 @@ type alias Model =
 
     , entries : List Entry
     , users : Dict String User
-    , modals : List ModalName
+    , modals : List (TheModel -> Html Msg)
     , error : String
     , user : Maybe User
 
@@ -84,6 +84,10 @@ type alias Model =
     , mdl : Material.Model
 
     }
+
+-- allow Model alias to reference itself by
+-- hiding itself inside a real type:
+type TheModel = TheModel Model
 
 --
 -- Update
@@ -143,7 +147,7 @@ update msg model = case logMsg msg of
 
     -- login modal:
     ShowLoginModal ->
-        { model | modals = model.modals ++ [LoginModal] } ! []
+        showModal model loginModal ! []
     LoginUserName str ->
         { model | loginUserName = str } ! []
     LoginPassword str ->
@@ -159,9 +163,9 @@ update msg model = case logMsg msg of
 
     -- add/edit entry modals:
     ShowAddEntryModal ->
-        prepareModelForAddEntry (showModal model AddEntryModal) ! []
+        prepareModelForAddEntry (showModal model addEntryModal) ! []
     ShowEditEntryModal entry ->
-        prepareModelForEditEntry entry (showModal model EditEntryModal) ! []
+        prepareModelForEditEntry entry (showModal model editEntryModal) ! []
     UpdateEntryName val ->
         { model | entryName = val } ! []
     UpdateEntryDescription val ->
@@ -219,8 +223,8 @@ update msg model = case logMsg msg of
 
 -- logs Msg's but hides sensitive information on a case by case:
 logMsg : Msg -> Msg
-logMsg msg = 
-  let 
+logMsg msg =
+  let
     log = Debug.log "update:"
     doLog = case msg of
       LoginPassword p -> log (LoginPassword <| String.map (\_ -> '*') p)
@@ -257,9 +261,13 @@ prepareModelForEditEntry entry model =
     , entryError = Nothing
     }
 
-showModal : Model -> ModalName -> Model
+showModal : Model -> (Model -> ModalOptions Msg Model) -> Model
 showModal model modal =
-    { model | modals = model.modals ++ [modal] }
+  let
+    modalShower theModel = case theModel of
+        TheModel m -> renderModal m (modal m)
+  in
+    { model | modals = model.modals ++ [modalShower] }
 
 closeTopModal : Model -> Model
 closeTopModal model =
@@ -359,10 +367,10 @@ view model =
                     [ text "Add Entry"]
                 ]
         , div [ class "entries" ] <|
-            if model.entries == [] 
+            if model.entries == []
             then [ div [ class "no-entries" ] [ text "No entries have been added yet." ] ]
             else List.map (renderEntry model) model.entries
-        , div [ class "modals" ] (List.map (renderModal model) model.modals)
+        , div [ class "modals" ] (List.map (\modalFunc -> modalFunc (TheModel model)) model.modals)
         ]
 
 renderEntry : Model -> Entry -> Html Msg
@@ -410,7 +418,7 @@ loginModal model =
     | title = text "Login"
     , onClose = Just ClearLoginDetails
     , preventClose = \model -> model.loggingIn
-    , isLoading = \model -> model.loggingIn
+    , isLoading = \model -> Debug.log "loggingIn" model.loggingIn
     , content =
         div [ class "login-modal" ]
             [ div [ class "inputs" ]
@@ -468,13 +476,13 @@ entryModalHtml isEditMode model =
         Just EntryBadDescription -> "Entry description required"
         Just EntryBadDuration -> "Entry duration required"
         _ -> "Something unsettling happened!"
-    durationString = 
+    durationString =
       let
         hours = round (toFloat model.entryDuration / (60 * 60 * 1000))
-      in 
+      in
         if hours == 1 then "1 hour"
         else if hours < 8 then toString hours ++ " hours"
-        else if hours == 8 then "1 day" 
+        else if hours == 8 then "1 day"
         else toString (toFloat hours / 8) ++ " days"
   in
     div [ class "entry-modal" ]
@@ -494,8 +502,8 @@ entryModalHtml isEditMode model =
                     , Textfield.value model.entryDescription
                     ]
             , inputRow "Type" <|
-                div [ class "type-inputs" ] 
-                    [ Toggles.radio Mdl [7,2] model.mdl 
+                div [ class "type-inputs" ]
+                    [ Toggles.radio Mdl [7,2] model.mdl
                         [ Toggles.value (model.entryType == Talk)
                         , Toggles.group "EntryType"
                         , Toggles.ripple
@@ -513,22 +521,22 @@ entryModalHtml isEditMode model =
             , inputRow "Duration" <|
                 div [ class "duration-input" ]
                     [ text durationString
-                    , Menu.render Mdl [0] model.mdl 
+                    , Menu.render Mdl [0] model.mdl
                         [ Menu.ripple, Menu.bottomRight ]
-                        [ Menu.item 
-                            [ Menu.onSelect (UpdateEntryDuration (1 * 3600000)) ] 
+                        [ Menu.item
+                            [ Menu.onSelect (UpdateEntryDuration (1 * 3600000)) ]
                             [ text "1 hour" ]
-                        , Menu.item 
-                            [ Menu.onSelect (UpdateEntryDuration (2 * 3600000)) ] 
-                            [ text "2 hours" ] 
                         , Menu.item
-                            [ Menu.onSelect (UpdateEntryDuration (4 * 3600000)) ] 
-                            [ text "4 hours" ] 
+                            [ Menu.onSelect (UpdateEntryDuration (2 * 3600000)) ]
+                            [ text "2 hours" ]
                         , Menu.item
-                            [ Menu.onSelect (UpdateEntryDuration (1 * 8 * 3600000)) ] 
-                            [ text "1 day" ] 
+                            [ Menu.onSelect (UpdateEntryDuration (4 * 3600000)) ]
+                            [ text "4 hours" ]
                         , Menu.item
-                            [ Menu.onSelect (UpdateEntryDuration (2 * 8 * 3600000)) ] 
+                            [ Menu.onSelect (UpdateEntryDuration (1 * 8 * 3600000)) ]
+                            [ text "1 day" ]
+                        , Menu.item
+                            [ Menu.onSelect (UpdateEntryDuration (2 * 8 * 3600000)) ]
                             [ text "2 days" ]
                         ]
                     ]
@@ -577,51 +585,88 @@ removeEntryModal model =
     }
 
 --
+-- A more specific version of general modals aimed
+-- at showing alerts/warnings/confirms:
+--
+
+type alias ChoiceModalOptions msg =
+    { title : String
+    , icon : String
+    , message : String
+    , onCancel : Maybe msg
+    , onPerform : Maybe msg
+    , cancelText : String
+    , performText : String
+    , hidePerform : Bool
+    }
+
+choiceModal : ChoiceModalOptions Msg -> Model -> ModalOptions Msg Model
+choiceModal opts model =
+  let
+    cancelMsg = case opts.onCancel of
+        Nothing -> Noop
+        Just m -> m
+    performMsg = case opts.onPerform of
+        Nothing -> Noop
+        Just m -> m
+  in
+    { defaultModalOptions
+    | title = text opts.title
+    , onClose = opts.onCancel
+    , content =
+        div [ class "choice-modal" ]
+            [ Icon.i opts.icon
+            , text opts.message
+            , Button.render Mdl [200,0] model.mdl
+                [ Button.raised
+                , Button.colored
+                , Button.onClick cancelMsg
+                , cs "cancel-button"
+                ]
+                [ text opts.cancelText ]
+            , not opts.hidePerform ?
+                Button.render Mdl [200,1] model.mdl
+                    [ Button.raised
+                    , Button.colored
+                    , Button.onClick performMsg
+                    , cs "perform-button"
+                    ]
+                    [ text opts.performText ]
+            ]
+    }
+
+--
 -- View - Modal maker
 --
 
-renderModal : Model -> ModalName -> Html Msg
-renderModal model modalName =
+renderModal : Model -> ModalOptions Msg Model -> Html Msg
+renderModal model {title,content,onClose,preventClose,isLoading} =
   let
-    makeModal {title,content,onClose,preventClose,isLoading} =
-      let
-        closeMsgs = All ([CloseTopModal] ++ case onClose of
-            Nothing -> []
-            Just msg -> [msg])
-      in
-        div [ class "modal-background" ]
-            [ div [ class "modal-inner" ]
-                [ div [ class "title" ]
-                    [ div [ class "title-inner" ] [ title ]
-                    , Button.render Mdl [100,0] model.mdl
-                        [ Button.icon
-                        , Button.plain
-                        , Button.onClick closeMsgs
-                        , Button.disabled `when` preventClose model
+    closeMsgs = All ([CloseTopModal] ++ case onClose of
+        Nothing -> []
+        Just msg -> [msg])
+  in
+    div [ class "modal-background" ]
+        [ div [ class "modal-inner" ]
+            [ div [ class "title" ]
+                [ div [ class "title-inner" ] [ title ]
+                , Button.render Mdl [100,0] model.mdl
+                    [ Button.icon
+                    , Button.plain
+                    , Button.onClick closeMsgs
+                    , Button.disabled `when` preventClose model
+                    ]
+                    [ Icon.i "close" ]
+                , isLoading model ?
+                    div [ class "loading-overlay" ]
+                        [ Loading.indeterminate
                         ]
-                        [ Icon.i "close" ]
-                    , isLoading model ?
-                        div [ class "loading-overlay" ]
-                            [ Loading.indeterminate
-                            ]
-                    ]
-                , div [ class "content" ]
-                    [ content
-                    ]
+                ]
+            , div [ class "content" ]
+                [ content
                 ]
             ]
-  in
-    case modalName of
-        ChoiceModal options -> makeModal (choiceModal options)
-        LoginModal -> makeModal (loginModal model)
-        AddEntryModal -> makeModal (addEntryModal model)
-        EditEntryModal -> makeModal (editEntryModal model)
-
-type ModalName
-    = ChoiceModal (ChoiceModalOptions Msg)
-    | LoginModal
-    | AddEntryModal
-    | EditEntryModal
+        ]
 
 type alias ModalOptions msg model =
     { title : Html msg
@@ -638,57 +683,6 @@ defaultModalOptions =
     , preventClose = \_ -> False
     , isLoading = \_ -> False
     , onClose = Nothing
-    }
-
---
--- A more specific version of general modals aimed
--- at showing alerts/warnings/confirms:
---
-
-type alias ChoiceModalOptions msg =
-    { title : String
-    , icon : String
-    , message : String
-    , onCancel : Maybe msg
-    , onPerform : Maybe msg
-    , cancelText : String
-    , performText : String
-    , hidePerform : Bool
-    }
-
-choiceModal : ChoiceModalOptions Msg -> ModalOptions Msg Model
-choiceModal opts =
-  let
-    cancelMsg = case opts.onCancel of
-        Nothing -> Noop
-        Just m -> m
-    performMsg = case opts.onPerform of
-        Nothing -> Noop
-        Just m -> m
-  in
-    { defaultModalOptions
-    | title = text opts.title
-    , onClose = opts.onCancel
-    , content =
-        div [ class "choice-modal" ]
-            [ Icon.i opts.icon
-            , text opts.message 
-            , Button.render Mdl [0] model.mdl
-                [ Button.raised
-                , Button.colored
-                , Button.onClick cancelMsg
-                , cs "cancel-button"
-                ]
-                [ text opts.cancelText ]
-            , not opts.hidePerform ? 
-                Button.render Mdl [0] model.mdl
-                    [ Button.raised
-                    , Button.colored
-                    , Button.onClick performMsg
-                    , cs "perform-button"
-                    ]
-                    [ text opts.performText ]
-            ]
     }
 
 --

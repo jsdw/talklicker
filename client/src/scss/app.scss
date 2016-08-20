@@ -48,7 +48,7 @@ body, html {
 		display: flex;
 		flex-direction: column;
 		position: relative;
-				
+
 		width: 500px;
 		margin-bottom: 5px;
 		padding: 10px;
@@ -124,6 +124,8 @@ body, html {
 @mixin modal-bottom-row {
 	display: flex;
 	align-items: center;
+	padding-top: 10px;
+
 	> .space-filler {
 		flex-grow: 1;
 	}
