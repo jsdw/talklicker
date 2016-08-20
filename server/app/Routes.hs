@@ -135,8 +135,8 @@ setEntry (Session _ sessUser) eId input = do
     -- expects entry to have name and description and nonzero duration if these are set:
     let trueForJust cond mVal = if mVal == Nothing then True else fmap cond mVal == Just True
     throwIf ((<= 0) `trueForJust` eiDuration input) err400{ errReasonPhrase = "BAD_DURATION" }
-    throwIf ((not.null) `trueForJust` eiName input) err400{ errReasonPhrase = "BAD_NAME" } 
-    throwIf ((not.null) `trueForJust` eiDescription input) err400{ errReasonPhrase = "BAD_DESCRIPTION" } 
+    throwIf (null `trueForJust` eiName input) err400{ errReasonPhrase = "BAD_NAME" } 
+    throwIf (null `trueForJust` eiDescription input) err400{ errReasonPhrase = "BAD_DESCRIPTION" } 
 
     let update entry = entry
             & entryDurationL    ~? eiDuration input

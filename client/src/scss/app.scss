@@ -58,8 +58,10 @@ body, html {
 		border-right: 1px solid rgb(248, 248, 248);
 		border-top: 1px solid rgb(248, 248, 248);
 
-		border-left: 4px solid blue;
-		&:nth-child(2n) {
+		&.entry-talk {
+			border-left: 4px solid blue;
+		}
+		&.entry-project {
 			border-left: 4px solid green;
 		}
 
@@ -68,6 +70,13 @@ body, html {
 			display: flex;
 			align-items: center;
 			margin-bottom: 0.5em;
+
+			.text.link {
+				font-weight: 600;
+				color: #5c5eff;
+				text-decoration: underline;
+				cursor: pointer;
+			}
 
 			> .icon {
 				display: flex; //wrap actual MDL icon.
@@ -115,6 +124,9 @@ body, html {
 @mixin modal-bottom-row {
 	display: flex;
 	align-items: center;
+	> .space-filler {
+		flex-grow: 1;
+	}
 	> .error {
 		flex-grow: 1;
 		margin-left: 1em;

@@ -117,9 +117,9 @@ type Msg
     | EditEntryFailed EntryError
     | EditEntrySuccess Entry
 
-    -- remove entry alert/action
-    | ShowRemoveEntryModal Entry
-    | DoRemoveEntry Entry
+    -- remove entry alert/action (from add/entry modal)
+    | ShowRemoveEntryModal
+    | DoRemoveEntry
     | DoneRemoveEntry
 
     -- perform several actions at once
@@ -187,11 +187,11 @@ update msg model = case logMsg msg of
         { model | entrySaving = False, entryError = Just err } ! []
 
     -- remove an entry
-    ShowRemoveEntryModal entry ->
-        prepareModelForEditEntry entry (showModal model RemoveEntryModal) ! []
-    DoRemoveEntry entry ->
+    ShowRemoveEntryModal ->
+        showModal model RemoveEntryModal ! []
+    DoRemoveEntry ->
       let
-        entries' = List.filter (\e -> e.id /= entry.id) model.entries
+        entries' = List.filter (\e -> e.id /= model.entryId) model.entries
       in
         { model | entries = entries' } ! [doRemoveEntry model]
     DoneRemoveEntry ->
@@ -238,6 +238,7 @@ prepareModelForAddEntry model =
         , entryName = ""
         , entryDescription = ""
         , entryType = Talk
+        , entryError = Nothing
         }
   in
     case model.user of
@@ -247,11 +248,13 @@ prepareModelForAddEntry model =
 prepareModelForEditEntry : Entry -> Model -> Model
 prepareModelForEditEntry entry model =
     { model
-    | entryUser = entry.user
+    | entryId = entry.id
+    , entryUser = entry.user
     , entryDuration = entry.duration
     , entryName = entry.name
     , entryDescription = entry.description
     , entryType = entry.entryType
+    , entryError = Nothing
     }
 
 showModal : Model -> ModalName -> Model
@@ -358,35 +361,37 @@ view model =
         , div [ class "entries" ] <|
             if model.entries == [] 
             then [ div [ class "no-entries" ] [ text "No entries have been added yet." ] ]
-            else entries model
+            else List.map (renderEntry model) model.entries
         , div [ class "modals" ] (List.map (renderModal model) model.modals)
         , text (toString model.error)
         ]
 
-entries : Model -> List (Html Msg)
-entries model =
+renderEntry : Model -> Entry -> Html Msg
+renderEntry model e =
   let
-    entry e =
-      let
-        entryIcon = case e.entryType of
-            Talk -> Icon.i "insert_emoticon"
-            Project -> Icon.i "keyboard"
-        entryUser = case Dict.get e.user model.users of
-            Nothing -> "an Unknown User"
-            Just u -> u.fullName
-        entryHours = round (toFloat e.duration / 3600000)
-      in
-        div [ class "entry" ]
-            [ div [ class "title" ]
-                [ div [ class "icon" ] [ entryIcon ]
-                , div [ class "text" ] [ text e.name ]
-                ]
-            , div [ class "description" ] [ text e.description ]
-            , div [ class "user"] [ text ("By " ++ entryUser) ]
-            , div [ class "duration" ] [ span [] [ text <| (toString entryHours)++"h" ] ]
-            ]
+    isMine = Maybe.map .name model.user == Just e.user
+    entryClass = case e.entryType of
+        Talk -> "entry-talk"
+        Project -> "entry-project"
+    entryIcon = case e.entryType of
+        Talk -> Icon.i "insert_emoticon"
+        Project -> Icon.i "keyboard"
+    entryUser = case Dict.get e.user model.users of
+        Nothing -> "an Unknown User"
+        Just u -> u.fullName
+    entryHours = round (toFloat e.duration / 3600000)
   in
-    List.map entry model.entries
+    div [ class ("entry " ++ entryClass) ]
+        [ div [ class "title" ]
+            [ div [ class "icon" ] [ entryIcon ]
+            , if isMine
+                then a [ class "text link", onClick (ShowEditEntryModal e) ] [ text e.name ]
+                else div [ class "text" ] [ text e.name ]
+            ]
+        , div [ class "description" ] [ text e.description ]
+        , div [ class "user"] [ text ("By " ++ entryUser) ]
+        , div [ class "duration" ] [ span [] [ text <| (toString entryHours)++"h" ] ]
+        ]
 
 button' : List (Attribute a) -> List (Html a) -> Html a
 button' attrs children =
@@ -542,13 +547,22 @@ entryModalHtml isEditMode model =
             [ Button.render Mdl [0] model.mdl
                 [ Button.raised
                 , Button.colored
-                , Button.onClick DoAddEntry
+                , Button.onClick (if isEditMode then DoEditEntry else DoAddEntry)
                 , cs "add-entry-button"
                 ]
-                [ text "Add Entry" ]
-            , model.entryError ??
-                div [ class "error" ]
-                    [ text errorString ]
+                [ text (if isEditMode then "Save Changes" else "Add Entry") ]
+            , if isJust model.entryError
+                then div [ class "error" ] [ text errorString ]
+                else div [ class "space-filler" ] []
+            , isEditMode ?
+                div [ class "delete" ]
+                    [ Button.render Mdl [0] model.mdl
+                        [ Button.icon
+                        , Button.ripple
+                        , Button.onClick ShowRemoveEntryModal
+                        ]
+                        [ Icon.i "delete"]
+                    ]
             ]
         ]
 
@@ -565,7 +579,7 @@ inputRow title html =
 removeEntryModal : Model -> ModalOptions Msg Model
 removeEntryModal model =
     { defaultModalOptions
-    | title = text "Error"
+    | title = text "Remove Entry"
     , content =
         div [ class "remove-entry-modal" ]
             [ ]
@@ -680,8 +694,14 @@ isJust m = case m of
 (?) : Bool -> Html a -> Html a
 (?) b html = if b then html else noNode
 
+(!?) : Bool -> Html a -> Html a
+(!?) b html = if b then noNode else html
+
 (??) : Maybe m -> Html a -> Html a
 (??) m html = if isJust m then html else noNode
+
+(!??) : Maybe m -> Html a -> Html a
+(!??) m html = if isJust m then noNode else html
 
 noNode : Html a
 noNode = Html.node "nothing" [ style [("position", "absolute"), ("display", "none")] ] []
