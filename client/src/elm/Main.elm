@@ -139,7 +139,7 @@ update msg model = case logMsg msg of
     UpdateCoreDetails core ->
         { model | loading = False, user = core.currentUser, entries = core.entries, users = core.users } ! []
     LogOut ->
-        { model | user = Nothing } ! []
+        { model | user = Nothing } ! [Task.perform (always Noop) (always Noop) Users.logout]
 
     -- login modal:
     ShowLoginModal ->
