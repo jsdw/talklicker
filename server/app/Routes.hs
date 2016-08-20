@@ -138,11 +138,14 @@ setEntry (Session _ sessUser) eId input = do
     throwIf (null `trueForJust` eiName input) err400{ errReasonPhrase = "BAD_NAME" } 
     throwIf (null `trueForJust` eiDescription input) err400{ errReasonPhrase = "BAD_DESCRIPTION" } 
 
+    currTime <- getTimeMillis
+
     let update entry = entry
             & entryDurationL    ~? eiDuration input
             & entryNameL        ~? eiName input
             & entryDescriptionL ~? eiDescription input
             & entryTypeL        ~? eiType input
+            & entryModifiedL    .~ currTime
             & entryUserL        ~? if isAdmin then Nothing else eiUser input
 
     mNewEntry <- modifyItems allEntriesL $ \e ->
