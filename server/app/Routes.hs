@@ -132,6 +132,12 @@ setEntry (Session _ sessUser) eId input = do
 
     let isAdmin = userType sessUser == Admin
 
+    -- expects entry to have name and description and nonzero duration if these are set:
+    let trueForJust cond mVal = if mVal == Nothing then True else fmap cond mVal == Just True
+    throwIf ((<= 0) `trueForJust` eiDuration input) err400{ errReasonPhrase = "BAD_DURATION" }
+    throwIf ((not.null) `trueForJust` eiName input) err400{ errReasonPhrase = "BAD_NAME" } 
+    throwIf ((not.null) `trueForJust` eiDescription input) err400{ errReasonPhrase = "BAD_DESCRIPTION" } 
+
     let update entry = entry
             & entryDurationL    ~? eiDuration input
             & entryNameL        ~? eiName input
@@ -178,6 +184,11 @@ addEntry (Session _ sessUser) input = do
     -- entry must be same user as session user unless user is admin:
     throwIf (userType sessUser /= Admin && nameToAddAs /= userName sessUser) err401
 
+    -- expects entry to have name and description and nonzero duration
+    throwIf (addEntryDuration input <= 0) err400{ errReasonPhrase = "BAD_DURATION" }
+    throwIf (null (addEntryName input)) err400{ errReasonPhrase = "BAD_NAME" } 
+    throwIf (null (addEntryDescription input)) err400{ errReasonPhrase = "BAD_DESCRIPTION" } 
+     
     currTime <- getTimeMillis
     newId <- Id <$> Id.generate
     mItem <- getItem allEntriesL (\e -> entryId e == newId)

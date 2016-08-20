@@ -6,6 +6,7 @@ import Task exposing (Task)
 import Debug
 import Dict exposing (Dict)
 import List
+import String
 
 import Material
 --import Material.Scheme
@@ -16,9 +17,10 @@ import Material.Button as Button
 import Material.Textfield as Textfield
 import Material.Progress as Loading
 import Material.Toggles as Toggles
+import Material.Menu as Menu
 
 import Api
-import Api.Entries as Entries exposing (Entry, EntryType(..))
+import Api.Entries as Entries exposing (Entry, EntryType(..), EntryError(..))
 import Api.Users as Users exposing (User, LoginError(..))
 
 --
@@ -49,6 +51,7 @@ model =
     , entryDescription = ""
     , entryType = Talk
     , entrySaving = False
+    , entryError = Nothing
 
     , mdl = Material.model
     }
@@ -76,6 +79,7 @@ type alias Model =
     , entryDescription : String
     , entryType : EntryType
     , entrySaving : Bool
+    , entryError : Maybe EntryError
 
     , mdl : Material.Model
 
@@ -107,9 +111,11 @@ type Msg
     | UpdateEntryType EntryType
     | UpdateEntryDuration Int
     | DoAddEntry
-    | DoneAddEntry Entry
+    | AddEntryFailed EntryError
+    | AddEntrySuccess Entry
     | DoEditEntry
-    | DoneEditEntry Entry
+    | EditEntryFailed EntryError
+    | EditEntrySuccess Entry
 
     -- remove entry alert/action
     | ShowRemoveEntryModal Entry
@@ -126,7 +132,7 @@ type Msg
     | Noop
 
 update : Msg -> Model -> (Model, Cmd Msg)
-update msg model = case Debug.log "update" msg of
+update msg model = case logMsg msg of
 
     ApiError error ->
         { model | loading = False, error = toString error } ! []
@@ -166,15 +172,19 @@ update msg model = case Debug.log "update" msg of
         { model | entryDuration = val } ! []
     DoAddEntry ->
         { model | entrySaving = True } ! [doAddEntry model]
-    DoneAddEntry entry ->
+    AddEntrySuccess entry ->
         closeTopModal { model | entries = model.entries ++ [entry], entrySaving = False } ! []
+    AddEntryFailed err ->
+        { model | entrySaving = False, entryError = Just err } ! []
     DoEditEntry ->
         { model | entrySaving = True } ! [doEditEntry model]
-    DoneEditEntry entry ->
+    EditEntrySuccess entry ->
       let
         entries' = List.map (\e -> if e.id == entry.id then entry else e) model.entries
       in
         closeTopModal { model | entries = entries', entrySaving = False } ! []
+    EditEntryFailed err ->
+        { model | entrySaving = False, entryError = Just err } ! []
 
     -- remove an entry
     ShowRemoveEntryModal entry ->
@@ -206,6 +216,17 @@ update msg model = case Debug.log "update" msg of
 
     Noop ->
         (model, Cmd.none)
+
+-- logs Msg's but hides sensitive information on a case by case:
+logMsg : Msg -> Msg
+logMsg msg = 
+  let 
+    log = Debug.log "update:"
+    doLog = case msg of
+      LoginPassword p -> log (LoginPassword <| String.map (\_ -> '*') p)
+      a -> log a
+  in
+    msg
 
 prepareModelForAddEntry : Model -> Model
 prepareModelForAddEntry model =
@@ -265,6 +286,7 @@ resetLoginState model =
     , loggingIn = False
     }
 
+entryishFromModel : Model -> Entries.EntrySettable {}
 entryishFromModel model =
     { id = model.entryId
     , user = model.entryUser
@@ -279,14 +301,14 @@ doAddEntry model =
   let
     entry = entryishFromModel model
   in
-    Task.perform ApiError DoneAddEntry (Entries.add entry)
+    Task.perform AddEntryFailed AddEntrySuccess (Entries.add entry)
 
 doEditEntry : Model -> Cmd Msg
 doEditEntry model =
   let
     entry = entryishFromModel model
   in
-    Task.perform ApiError DoneEditEntry (Entries.set entry)
+    Task.perform EditEntryFailed EditEntrySuccess (Entries.set entry)
 
 doRemoveEntry : Model -> Cmd Msg
 doRemoveEntry model =
@@ -431,69 +453,114 @@ addEntryModal : Model -> ModalOptions Msg Model
 addEntryModal model =
     { defaultModalOptions
     | title = text "Add Entry"
-    , content =
-        div [ class "entry-modal" ]
-            [ tr [ class "inputs" ]
-                [ inputRow "Title" <|
-                    Textfield.render Mdl [7,0] model.mdl
-                        [ Textfield.label "My Talk"
-                        , Textfield.onInput UpdateEntryName
-                        , Textfield.value model.entryName
-                        ]
-                , inputRow "Description" <|
-                    Textfield.render Mdl [7,1] model.mdl
-                        [ Textfield.label "Is about..."
-                        , Textfield.textarea
-                        , Textfield.rows 6
-                        , Textfield.onInput UpdateEntryDescription
-                        , Textfield.value model.entryDescription
-                        ]
-                , inputRow "Type" <|
-                    div [ class "type-inputs" ] 
-                        [ Toggles.radio Mdl [7,2] model.mdl 
-                            [ Toggles.value (model.entryType == Talk)
-                            , Toggles.group "EntryType"
-                            , Toggles.ripple
-                            , Toggles.onClick (UpdateEntryType Talk)
-                            ]
-                            [ text "Talk" ]
-                        , Toggles.radio Mdl [7,3] model.mdl
-                            [ Toggles.value (model.entryType == Project)
-                            , Toggles.group "EntryType"
-                            , Toggles.ripple
-                            , Toggles.onClick (UpdateEntryType Project)
-                            ]
-                            [ text "Project" ]
-                        ]
-                ]
-            , div [ class "bottom-row" ]
-                [ Button.render Mdl [0] model.mdl
-                    [ Button.raised
-                    , Button.colored
-                    , Button.onClick DoAddEntry
-                    , cs "add-entry-button"
-                    ]
-                    [ text "Add Entry" ]
-                ]
-            ]
+    , isLoading = \model -> model.entrySaving
+    , content = entryModalHtml False model
     }
-
-inputRow : String -> Html a -> Html a
-inputRow title html =
-    tr [ class "input-row" ]
-        [ td [ class "input-name" ] [ text title ]
-        , td [ class "input-widget" ] [ html ]
-        ]
 
 editEntryModal : Model -> ModalOptions Msg Model
 editEntryModal model =
     { defaultModalOptions
     | title = text "Edit Entry"
-    , content =
-        div [ class "edit-entry-modal" ]
-            [ 
-            ]
+    , isLoading = \model -> model.entrySaving
+    , content = entryModalHtml True model
     }
+
+entryModalHtml : Bool -> Model -> Html Msg
+entryModalHtml isEditMode model =
+  let
+    errorString = case model.entryError of
+        Just EntryBadName -> "Entry name required"
+        Just EntryBadDescription -> "Entry description required"
+        Just EntryBadDuration -> "Entry duration required"
+        _ -> "Something unsettling happened!"
+    durationString = 
+      let
+        hours = round (toFloat model.entryDuration / (60 * 60 * 1000))
+      in 
+        if hours == 1 then "1 hour"
+        else if hours < 8 then toString hours ++ " hours"
+        else if hours == 8 then "1 day" 
+        else toString (toFloat hours / 8) ++ " days"
+  in
+    div [ class "entry-modal" ]
+        [ table [ class "inputs" ]
+            [ inputRow "Title" <|
+                Textfield.render Mdl [7,0] model.mdl
+                    [ Textfield.label "My talk or project"
+                    , Textfield.onInput UpdateEntryName
+                    , Textfield.value model.entryName
+                    ]
+            , inputRow "Description" <|
+                Textfield.render Mdl [7,1] model.mdl
+                    [ Textfield.label "More detail"
+                    , Textfield.textarea
+                    , Textfield.rows 6
+                    , Textfield.onInput UpdateEntryDescription
+                    , Textfield.value model.entryDescription
+                    ]
+            , inputRow "Type" <|
+                div [ class "type-inputs" ] 
+                    [ Toggles.radio Mdl [7,2] model.mdl 
+                        [ Toggles.value (model.entryType == Talk)
+                        , Toggles.group "EntryType"
+                        , Toggles.ripple
+                        , Toggles.onClick (UpdateEntryType Talk)
+                        ]
+                        [ text "Talk" ]
+                    , Toggles.radio Mdl [7,3] model.mdl
+                        [ Toggles.value (model.entryType == Project)
+                        , Toggles.group "EntryType"
+                        , Toggles.ripple
+                        , Toggles.onClick (UpdateEntryType Project)
+                        ]
+                        [ text "Project" ]
+                    ]
+            , inputRow "Duration" <|
+                div [ class "duration-input" ]
+                    [ text durationString
+                    , Menu.render Mdl [0] model.mdl 
+                        [ Menu.ripple, Menu.bottomRight ]
+                        [ Menu.item 
+                            [ Menu.onSelect (UpdateEntryDuration (1 * 3600000)) ] 
+                            [ text "1 hour" ]
+                        , Menu.item 
+                            [ Menu.onSelect (UpdateEntryDuration (2 * 3600000)) ] 
+                            [ text "2 hours" ] 
+                        , Menu.item
+                            [ Menu.onSelect (UpdateEntryDuration (4 * 3600000)) ] 
+                            [ text "4 hours" ] 
+                        , Menu.item
+                            [ Menu.onSelect (UpdateEntryDuration (1 * 8 * 3600000)) ] 
+                            [ text "1 day" ] 
+                        , Menu.item
+                            [ Menu.onSelect (UpdateEntryDuration (2 * 8 * 3600000)) ] 
+                            [ text "2 days" ]
+                        ]
+                    ]
+            ]
+        , div [ class "bottom-row" ]
+            [ Button.render Mdl [0] model.mdl
+                [ Button.raised
+                , Button.colored
+                , Button.onClick DoAddEntry
+                , cs "add-entry-button"
+                ]
+                [ text "Add Entry" ]
+            , model.entryError ??
+                div [ class "error" ]
+                    [ text errorString ]
+            ]
+        ]
+
+inputRow : String -> Html a -> Html a
+inputRow title html =
+  let
+    key = String.toLower title
+  in
+    tr [ class ("input-row input-row-"++key) ]
+        [ td [ class ("input-name input-name-"++key) ] [ text title ]
+        , td [ class "input-widget" ] [ html ]
+        ]
 
 removeEntryModal : Model -> ModalOptions Msg Model
 removeEntryModal model =

@@ -26,10 +26,9 @@ read (Database _ mv) = liftIO $ readMVar mv
 
 modify :: (MonadIO m, ToJSON a) => Database a -> (a -> IO (a,b)) -> m b
 modify (Database fileName mv) fn = liftIO $ do
-    modifyMVar mv $ \a -> do
-        out <- fn a
-        writeMVarToFile fileName mv
-        return out
+    res <- modifyMVar mv fn
+    writeMVarToFile fileName mv
+    return res
 
 modify_ :: (MonadIO m, ToJSON a) => Database a -> (a -> IO a) -> m ()
 modify_ db fn = modify db (\a -> fn a >>= \newA -> return (newA,()))

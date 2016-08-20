@@ -1,4 +1,4 @@
-module Api.Entries exposing (get, set, remove, add, Entry, EntrySettable, EntryAddable, EntryType(..))
+module Api.Entries exposing (get, set, remove, add, Entry, EntryError(..), EntrySettable, EntryAddable, EntryType(..))
 
 import Json.Encode as Enc exposing (Value, null)
 import Json.Decode as Dec exposing (Decoder, (:=))
@@ -55,8 +55,16 @@ toEntryType str =
 -- Set entry (edit):
 --
 
-set : EntrySettable a -> Task Error Entry
-set entry = request Post ("entries" :> entry.id) (Just <| addEntryEncoder entry) entryDecoder
+set : EntrySettable a -> Task EntryError Entry
+set entry = 
+    request Post ("entries" :> entry.id) (Just <| addEntryEncoder entry) entryDecoder
+        `Task.onError` handleError
+
+handleError err = case err of
+    ClientError 400 "BAD_NAME" -> Task.fail EntryBadName
+    ClientError 400 "BAD_DESCRIPTION" -> Task.fail EntryBadDescription
+    ClientError 400 "BAD_DURATION" -> Task.fail EntryBadDuration            
+    err -> Task.fail (EntryBadOther err)
 
 entryTypeEncoder : EntryType -> Value
 entryTypeEncoder e = Enc.string (fromEntryType e)
@@ -65,6 +73,12 @@ fromEntryType : EntryType -> String
 fromEntryType e = case e of
     Talk -> "Talk"
     Project -> "Project"
+
+type EntryError
+    = EntryBadName
+    | EntryBadDescription
+    | EntryBadDuration
+    | EntryBadOther Error
 
 type alias EntrySettable a =
     { a
@@ -87,8 +101,9 @@ remove id = request Delete ("entries" :> id) Nothing noResult
 -- Add entry:
 --
 
-add : EntryAddable a -> Task Error Entry
+add : EntryAddable a -> Task EntryError Entry
 add entry = request Post "entries" (Just <| addEntryEncoder entry) entryDecoder
+    `Task.onError` handleError
 
 addEntryEncoder : EntryAddable a -> Value
 addEntryEncoder entry =
