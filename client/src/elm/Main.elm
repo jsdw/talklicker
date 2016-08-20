@@ -188,7 +188,7 @@ update msg model = case logMsg msg of
 
     -- remove an entry
     ShowRemoveEntryModal ->
-        showModal model RemoveEntryModal ! []
+        model ! [] --showModal model RemoveEntryModal ! []
     DoRemoveEntry ->
       let
         entries' = List.filter (\e -> e.id /= model.entryId) model.entries
@@ -363,7 +363,6 @@ view model =
             then [ div [ class "no-entries" ] [ text "No entries have been added yet." ] ]
             else List.map (renderEntry model) model.entries
         , div [ class "modals" ] (List.map (renderModal model) model.modals)
-        , text (toString model.error)
         ]
 
 renderEntry : Model -> Entry -> Html Msg
@@ -397,15 +396,6 @@ button' : List (Attribute a) -> List (Html a) -> Html a
 button' attrs children =
     div [ class "button" ]
         [ div attrs children ]
-
-errorModal : Model -> String -> ModalOptions Msg Model
-errorModal model err =
-    { defaultModalOptions
-    | title = text "Error"
-    , content =
-        div [ class "error-modal" ]
-            [ text err ]
-    }
 
 loginModal : Model -> ModalOptions Msg Model
 loginModal model =
@@ -547,6 +537,7 @@ entryModalHtml isEditMode model =
             [ Button.render Mdl [0] model.mdl
                 [ Button.raised
                 , Button.colored
+                , Button.disabled `when` (model.entryName == "" || model.entryDescription == "")
                 , Button.onClick (if isEditMode then DoEditEntry else DoAddEntry)
                 , cs "add-entry-button"
                 ]
@@ -621,18 +612,16 @@ renderModal model modalName =
             ]
   in
     case modalName of
-        ErrorModal str -> makeModal (errorModal model str)
+        ChoiceModal options -> makeModal (choiceModal options)
         LoginModal -> makeModal (loginModal model)
         AddEntryModal -> makeModal (addEntryModal model)
         EditEntryModal -> makeModal (editEntryModal model)
-        RemoveEntryModal -> makeModal (removeEntryModal model)
 
 type ModalName
-    = ErrorModal String
+    = ChoiceModal (ChoiceModalOptions Msg)
     | LoginModal
     | AddEntryModal
     | EditEntryModal
-    | RemoveEntryModal
 
 type alias ModalOptions msg model =
     { title : Html msg
@@ -649,6 +638,57 @@ defaultModalOptions =
     , preventClose = \_ -> False
     , isLoading = \_ -> False
     , onClose = Nothing
+    }
+
+--
+-- A more specific version of general modals aimed
+-- at showing alerts/warnings/confirms:
+--
+
+type alias ChoiceModalOptions msg =
+    { title : String
+    , icon : String
+    , message : String
+    , onCancel : Maybe msg
+    , onPerform : Maybe msg
+    , cancelText : String
+    , performText : String
+    , hidePerform : Bool
+    }
+
+choiceModal : ChoiceModalOptions Msg -> ModalOptions Msg Model
+choiceModal opts =
+  let
+    cancelMsg = case opts.onCancel of
+        Nothing -> Noop
+        Just m -> m
+    performMsg = case opts.onPerform of
+        Nothing -> Noop
+        Just m -> m
+  in
+    { defaultModalOptions
+    | title = text opts.title
+    , onClose = opts.onCancel
+    , content =
+        div [ class "choice-modal" ]
+            [ Icon.i opts.icon
+            , text opts.message 
+            , Button.render Mdl [0] model.mdl
+                [ Button.raised
+                , Button.colored
+                , Button.onClick cancelMsg
+                , cs "cancel-button"
+                ]
+                [ text opts.cancelText ]
+            , not opts.hidePerform ? 
+                Button.render Mdl [0] model.mdl
+                    [ Button.raised
+                    , Button.colored
+                    , Button.onClick performMsg
+                    , cs "perform-button"
+                    ]
+                    [ text opts.performText ]
+            ]
     }
 
 --
