@@ -169,12 +169,13 @@ data UserOutput = UserOutput
     { _uoUserName     :: String
     , _uoUserFullName :: String
     , _uoUserType     :: UserType
+    , _uoUserHasPass  :: Bool
     } deriving (Eq, Show, Generic)
 
 instance ToJSON UserOutput where toJSON = toPrefix "_uoUser"
 
 toUserOutput :: User -> UserOutput
-toUserOutput User{..} = UserOutput userName userFullName userType
+toUserOutput User{..} = UserOutput userName userFullName userType (not $ null userPass)
 
 --
 -- handy JSON generic to/from funcs that strip prefixes, fixing

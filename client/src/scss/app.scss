@@ -143,6 +143,29 @@ body, html {
 	}
 }
 
+.choice-modal {
+	> .content {
+		display: flex;
+		align-items: center;
+		> .icon {
+			display: flex;
+    		padding-right: 15px;
+		}
+	}
+	> .buttons {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding-top: 15px;
+		> .perform-button {
+			background-color: #e40000;
+			&:hover {
+				background-color: rgb(255, 0, 0);
+			}
+		}
+	}
+}
+
 .login-modal {
 	.inputs {
 		display: flex;
@@ -209,6 +232,7 @@ body, html {
 	bottom: 0;
 	left: 0;
 	right: 0;
+	z-index: 0;
 	background-color: rgba(0,0,0,0.4);
 
 	display: flex;

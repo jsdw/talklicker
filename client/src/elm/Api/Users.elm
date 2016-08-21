@@ -55,6 +55,7 @@ type alias User =
     { name : String
     , fullName : String
     , userType : UserType
+    , hasPass : Bool
     }
 
 type UserType = Admin | NormalUser
@@ -63,10 +64,11 @@ usersDecoder : Decoder (List User)
 usersDecoder = Dec.list userDecoder
 
 userDecoder : Decoder User
-userDecoder = Dec.object3 User
+userDecoder = Dec.object4 User
     ("name" := Dec.string)
     ("fullName" := Dec.string)
     ("type" := userTypeDecoder)
+    ("hasPass" := Dec.bool)
 
 userTypeDecoder : Decoder UserType
 userTypeDecoder = Dec.customDecoder Dec.string toUserType

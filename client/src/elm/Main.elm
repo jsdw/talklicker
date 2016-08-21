@@ -192,7 +192,7 @@ update msg model = case logMsg msg of
 
     -- remove an entry
     ShowRemoveEntryModal ->
-        model ! [] --showModal model RemoveEntryModal ! []
+        showModal model removeEntryModal ! []
     DoRemoveEntry ->
       let
         entries' = List.filter (\e -> e.id /= model.entryId) model.entries
@@ -408,7 +408,7 @@ button' attrs children =
 loginModal : Model -> ModalOptions Msg Model
 loginModal model =
   let
-    invalid = model.loginUserName == "" || model.loginPassword == ""
+    invalid = model.loginUserName == ""
     loginErrorString = case model.loginError of
         Just LoginBadUser -> "Wrong username"
         Just LoginBadPassword -> "Wrong password"
@@ -577,12 +577,16 @@ inputRow title html =
 
 removeEntryModal : Model -> ModalOptions Msg Model
 removeEntryModal model =
-    { defaultModalOptions
-    | title = text "Remove Entry"
-    , content =
-        div [ class "remove-entry-modal" ]
-            [ ]
-    }
+  let
+    opts =
+        { defaultWarningModalOptions
+        | title = "Remove Entry"
+        , message = "Are you sure you want to remove this entry?"
+        , onPerform = Just (All [CloseTopModal, DoRemoveEntry]) -- close the "Edit entry" modal we came from as well.
+        , performText = "Remove"
+        }
+  in
+    choiceModal opts model
 
 --
 -- A more specific version of general modals aimed
@@ -598,40 +602,61 @@ type alias ChoiceModalOptions msg =
     , cancelText : String
     , performText : String
     , hidePerform : Bool
+    , hideCancel : Bool
+    }
+
+defaultWarningModalOptions : ChoiceModalOptions Msg
+defaultWarningModalOptions =
+    { title = "Warning"
+    , icon = "warning"
+    , message = "Are you sure you want to do this?"
+    , onCancel = Nothing
+    , cancelText = "Dismiss"
+    , hideCancel = False
+    , onPerform = Nothing
+    , performText = "Perform"
+    , hidePerform = False
     }
 
 choiceModal : ChoiceModalOptions Msg -> Model -> ModalOptions Msg Model
 choiceModal opts model =
   let
-    cancelMsg = case opts.onCancel of
-        Nothing -> Noop
-        Just m -> m
-    performMsg = case opts.onPerform of
-        Nothing -> Noop
-        Just m -> m
+    performMsg = All ([CloseTopModal] ++ case opts.onPerform of
+        Nothing -> []
+        Just msg -> [msg])
+    cancelMsg = All ([CloseTopModal] ++ case opts.onCancel of
+        Nothing -> []
+        Just msg -> [msg])
   in
     { defaultModalOptions
     | title = text opts.title
     , onClose = opts.onCancel
     , content =
         div [ class "choice-modal" ]
-            [ Icon.i opts.icon
-            , text opts.message
-            , Button.render Mdl [200,0] model.mdl
-                [ Button.raised
-                , Button.colored
-                , Button.onClick cancelMsg
-                , cs "cancel-button"
+            [ div [ class "content" ]
+                [ div [ class "icon" ]
+                    [ Icon.view opts.icon [ Icon.size48 ] ]
+                , div [ class "message" ]
+                    [ text opts.message ]
                 ]
-                [ text opts.cancelText ]
-            , not opts.hidePerform ?
-                Button.render Mdl [200,1] model.mdl
-                    [ Button.raised
-                    , Button.colored
-                    , Button.onClick performMsg
-                    , cs "perform-button"
-                    ]
-                    [ text opts.performText ]
+            , div [ class "buttons" ]
+                [ not opts.hideCancel ?
+                    Button.render Mdl [200,0] model.mdl
+                        [ Button.raised
+                        , Button.colored
+                        , Button.onClick cancelMsg
+                        , cs "cancel-button"
+                        ]
+                        [ text opts.cancelText ]
+                , not opts.hidePerform ?
+                    Button.render Mdl [200,1] model.mdl
+                        [ Button.raised
+                        , Button.colored
+                        , Button.onClick performMsg
+                        , cs "perform-button"
+                        ]
+                        [ text opts.performText ]
+                ]
             ]
     }
 
