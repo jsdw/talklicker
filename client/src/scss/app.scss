@@ -208,8 +208,29 @@ body, html {
 	border-collapse: separate;
 	border-spacing: 10px 15px;
 
-	.input-name {
-		padding-right: 1em;
+	.input-row {
+		> .input-name {
+			padding-right: 1em;
+			vertical-align: middle;
+		}
+		> .input-widget {
+			.type-inputs {
+				> *:not(:last-child) {
+					margin-right: 1em;
+				}
+			}
+			.mdl-textfield {
+				padding-top: 0px;
+				padding-bottom: 0px;
+				.mdl-textfield__input {
+					padding-top: 0px;
+				}
+				.mdl-textfield__label {
+					top: 0px;
+					&::after { bottom: 0px; }
+				}
+			}
+		}
 	}
 
 }
@@ -232,29 +253,10 @@ body, html {
 		@include input-table;
 
 		.input-row {
-			> .input-name {
-				vertical-align: middle;
-				&.input-name-description {
-					vertical-align: top;
-				}
+			> .input-name .input-name-description {
+				vertical-align: top;
 			}
 			> .input-widget {
-				.type-inputs {
-					> *:not(:last-child) {
-						margin-right: 1em;
-					}
-				}
-				.mdl-textfield {
-					padding-top: 0px;
-					padding-bottom: 0px;
-					.mdl-textfield__input {
-						padding-top: 0px;
-					}
-					.mdl-textfield__label {
-						top: 0px;
-						&::after { bottom: 0px; }
-					}
-				}
 				.duration-input {
 					display: flex;
 					align-items: center;

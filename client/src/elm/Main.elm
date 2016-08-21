@@ -664,6 +664,7 @@ editCurrentUserModal : Model -> ModalOptions Msg Model
 editCurrentUserModal model =
     { defaultModalOptions
     | title = text "Profile"
+    , isLoading = \model -> model.userSaving
     , content = userModalHtml True model
     }
 
@@ -671,14 +672,44 @@ userModalHtml : Bool -> Model -> Html Msg
 userModalHtml isEditMode model =
   let
     isMe = isEditMode && Maybe.map .name model.user == Just model.userName
+    userType = case model.userType of
+        Admin -> "Administrator"
+        NormalUser -> "Normal User"
   in
     div [ class "user-modal" ]
         [ table [ class "inputs" ]
-            [ inputRow "Name" <|
-                Textfield.render Mdl [10,0] model.mdl
+            [ inputRow "Username" <|
+                if isEditMode
+                then
+                    text model.userName
+                else
+                    Textfield.render Mdl [10,0] model.mdl
+                        [ Textfield.onInput UpdateUserName
+                        , Textfield.value model.userName
+                        ]
+            , inputRow "Display Name" <|
+                Textfield.render Mdl [10,1] model.mdl
                     [ Textfield.onInput UpdateUserFullName
                     , Textfield.value model.userFullName
                     ]
+            , not isEditMode ?
+                (inputRow "Type" <|
+                    div [ class "type-inputs" ]
+                        [ Toggles.radio Mdl [10,2] model.mdl
+                            [ Toggles.value (model.userType == Admin)
+                            , Toggles.group "UserType"
+                            , Toggles.ripple
+                            , Toggles.onClick (UpdateUserType Admin)
+                            ]
+                            [ text "Administrator" ]
+                        , Toggles.radio Mdl [10,3] model.mdl
+                            [ Toggles.value (model.userType == NormalUser)
+                            , Toggles.group "UserType"
+                            , Toggles.ripple
+                            , Toggles.onClick (UpdateUserType NormalUser)
+                            ]
+                            [ text "Normal User" ]
+                        ])
             ]
         , div [ class "bottom-row" ]
             [ Button.render Mdl [0] model.mdl
@@ -811,7 +842,7 @@ entryModalHtml isEditMode model =
 inputRow : String -> Html a -> Html a
 inputRow title html =
   let
-    key = String.toLower title
+    key = String.map (\c -> if c == ' ' then '-' else c) <| String.toLower title
   in
     tr [ class ("input-row input-row-"++key) ]
         [ td [ class ("input-name input-name-"++key) ] [ text title ]
