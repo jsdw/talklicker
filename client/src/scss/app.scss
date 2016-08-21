@@ -38,7 +38,7 @@ body, html {
 
 }
 
-.add-entry-area {
+.add-entry-area, .add-user-area {
 	display: flex;
 	align-items:center;
 	justify-content:center;
@@ -49,87 +49,136 @@ body, html {
 	}
 }
 
-.entries {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	padding-top: 20px;
+@mixin entryUserTitle {
 
-	> .entry {
+	font-weight: 600;
+	display: flex;
+	align-items: center;
+	margin-bottom: 0.5em;
+
+	.text.link {
+		font-weight: 600;
+		color: #5c5eff;
+		text-decoration: underline;
+		cursor: pointer;
+	}
+
+	> i {
+		margin-right: 0.3em;
+	}
+
+}
+
+.entries-tab {
+
+	.entries {
 		display: flex;
 		flex-direction: column;
-		position: relative;
+		align-items: center;
+		padding-top: 20px;
 
-		width: 500px;
-		margin-bottom: 5px;
-		padding: 10px;
-		padding: 0.5em 1em;
-
-		border-bottom: 1px solid rgb(209, 209, 209);
-		border-right: 1px solid rgb(248, 248, 248);
-		border-top: 1px solid rgb(248, 248, 248);
-
-		&.entry-talk {
-			border-left: 4px solid blue;
-		}
-		&.entry-project {
-			border-left: 4px solid green;
-		}
-
-		> .title {
-			font-weight: 600;
+		> .entry {
 			display: flex;
-			align-items: center;
-			margin-bottom: 0.5em;
+			flex-direction: column;
+			position: relative;
 
-			.text.link {
-				font-weight: 600;
-				color: #5c5eff;
-				text-decoration: underline;
-				cursor: pointer;
+			width: 500px;
+			margin-bottom: 5px;
+			padding: 10px;
+			padding: 0.5em 1em;
+
+			border-bottom: 1px solid rgb(209, 209, 209);
+			border-right: 1px solid rgb(248, 248, 248);
+			border-top: 1px solid rgb(248, 248, 248);
+
+			&.entry-talk {
+				border-left: 4px solid blue;
+			}
+			&.entry-project {
+				border-left: 4px solid green;
 			}
 
-			> .icon {
-				display: flex; //wrap actual MDL icon.
-				margin-right: 0.5em;
+			> .title {
+				@include entryUserTitle;
 			}
-		}
 
-		> .description {
-			//avoid hitting duration:
-			width: calc(100% - 35px);
+			> .description {
+				//avoid hitting duration:
+				width: calc(100% - 35px);
+			}
+
+			> .user {
+				font-style: italic;
+				color: rgb(130, 130, 130);
+				font-size:90%;
+
+				//avoid hitting duration:
+				width: calc(100% - 35px);
+			}
+
+			> .duration {
+
+				position: absolute;
+				bottom: 10px;
+				right: 10px;
+
+				display: flex;
+				align-self: flex-end;
+
+				border-radius: 15px;
+				width: 30px;
+				height: 30px;
+
+				background-color: #e4e4e4;
+				color: #323133;
+
+				align-items: center;
+				justify-content: center;
+			}
+
 		}
+	}
+
+}
+
+.users-tab {
+
+	.users {
+		display: flex;
+		align-items: center;
+		flex-direction: column;
+		padding-top: 20px;
 
 		> .user {
-			font-style: italic;
-			color: rgb(130, 130, 130);
-			font-size:90%;
 
-			//avoid hitting duration:
-			width: calc(100% - 35px);
+			width: 500px;
+			margin-bottom: 5px;
+			padding: 10px;
+			padding: 0.5em 1em;
+
+			&.user-admin {
+				border-left: 4px solid #ffb100;
+			}
+			&.user-normal {
+				border-left: 4px solid black;
+			}
+
+			border-bottom: 1px solid rgb(209, 209, 209);
+			border-right: 1px solid rgb(248, 248, 248);
+			border-top: 1px solid rgb(248, 248, 248);
+
+			> .title {
+				@include entryUserTitle;
+			}
+
+			> .type {
+				font-style: italic;
+				color: rgb(130, 130, 130);
+				font-size:90%;
+			}
 		}
-
-		> .duration {
-
-			position: absolute;
-			bottom: 10px;
-			right: 10px;
-
-			display: flex;
-			align-self: flex-end;
-
-			border-radius: 15px;
-			width: 30px;
-			height: 30px;
-
-			background-color: #e4e4e4;
-			color: #323133;
-
-			align-items: center;
-			justify-content: center;
-		}
-
 	}
+
 }
 
 @mixin modal-bottom-row {

@@ -275,7 +275,7 @@ setUser (Session _ sessUser) name input = do
 
     -- hash the provided password if necessary
     mHash <- case uiPass input of
-        Just pass -> Just <$> hashPass pass
+        Just pass -> Just <$> (if null pass then return "" else hashPass pass)
         Nothing -> return Nothing
 
     -- update the user using any details provided. Leave values

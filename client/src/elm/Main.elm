@@ -18,6 +18,7 @@ import Material.Textfield as Textfield
 import Material.Progress as Loading
 import Material.Toggles as Toggles
 import Material.Menu as Menu
+import Material.Tabs as Tabs
 
 import Api
 import Api.Entries as Entries exposing (Entry, EntryType(..), EntryError(..))
@@ -31,6 +32,7 @@ model : Model
 model =
     { loading = True
 
+    , tab = EntriesTab
     , entries = []
     , users = Dict.empty
     , modals = []
@@ -71,6 +73,7 @@ model =
 type alias Model =
     { loading : Bool
 
+    , tab : Tab
     , entries : List Entry
     , users : Dict String User
     , modals : List (TheModel -> Html Msg)
@@ -113,16 +116,18 @@ type alias Model =
 -- hiding itself inside a real type:
 type TheModel = TheModel Model
 
+type Tab = EntriesTab | UsersTab
+
 --
 -- Update
 --
 
 type Msg
-    = ApiError Api.Error
+    = SelectTab Tab
+    | ApiError Api.Error
     | UpdateCoreDetails CoreDetails
     | LogOut
     | DoLogout
-    | ShowSetPasswordModal
 
     -- login modal:
     | ShowLoginModal
@@ -143,6 +148,10 @@ type Msg
     -- add/edit user modal:
     | ShowEditCurrentUserModal
     | ShowAddUserModal
+    | ShowEditUserModal User
+    | ShowSetPasswordModal
+    | ShowResetPassword
+    | DoResetPassword
     | UpdateUserName String
     | UpdateUserFullName String
     | UpdateUserType UserType
@@ -182,6 +191,9 @@ type Msg
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model = case logMsg msg of
 
+    SelectTab tab ->
+        { model | tab = tab } ! []
+
     ApiError error ->
         { model | loading = False, error = toString error } ! []
     UpdateCoreDetails core ->
@@ -189,9 +201,7 @@ update msg model = case logMsg msg of
     LogOut ->
         showModal logoutModal model ! []
     DoLogout ->
-        { model | user = Nothing } ! [Task.perform (always Noop) (always Noop) Users.logout]
-    ShowSetPasswordModal ->
-        showModal (setPasswordModal False) { model | setPasswordFirst = "", setPasswordSecond = "" } ! []
+        { model | user = Nothing, tab = EntriesTab } ! [Task.perform (always Noop) (always Noop) Users.logout]
 
     -- login modal:
     ShowLoginModal ->
@@ -212,6 +222,14 @@ update msg model = case logMsg msg of
     -- add/edit user modal:
     ShowEditCurrentUserModal ->
         showModal editCurrentUserModal (prepareEditCurrentUser model) ! []
+    ShowEditUserModal user ->
+        showModal editUserModal (prepareEditUser user model) ! []
+    ShowSetPasswordModal ->
+        showModal (setPasswordModal False) { model | setPasswordFirst = "", setPasswordSecond = "" } ! []
+    ShowResetPassword ->
+        showModal resetPasswordModal model ! []
+    DoResetPassword ->
+        model ! [doResetPassword model.userName]
     ShowAddUserModal ->
         showModal addUserModal (prepareAddUser model) ! []
     UpdateUserName str ->
@@ -375,6 +393,15 @@ prepareAddUser model =
     , userError = False
     }
 
+prepareEditUser : User -> Model -> Model
+prepareEditUser user model =
+    { model
+    | userName = user.name
+    , userFullName = user.fullName
+    , userType = user.userType
+    , userSaving = False
+    , userError = False}
+
 showModal : (Model -> ModalOptions Msg Model) -> Model -> Model
 showModal modal model =
   let
@@ -410,6 +437,13 @@ doSetPassword model =
     case model.user of
         Nothing -> Cmd.none
         Just u -> Task.perform (always SetPasswordFailed) (always SetPasswordSuccess) (setPass u)
+
+doResetPassword : String -> Cmd Msg
+doResetPassword username =
+  let
+    resetPass = Users.set username { fullName = Nothing, userType = Nothing, pass = Just "" }
+  in
+    Task.perform (always Noop) (always Noop) resetPass
 
 doEditUser : Model -> Cmd Msg
 doEditUser model =
@@ -489,6 +523,42 @@ view model =
         Nothing -> { fullName = "Unknown User", userType = NormalUser }
         Just u -> { fullName = u.fullName, userType = u.userType }
     isAdmin = details.userType == Admin
+
+    -- entries tab with list of entries
+    entriesTab =
+        div [ class "entries-tab" ]
+            [ isLoggedIn ?
+                div [ class "add-entry-area" ]
+                    [ Button.render Mdl [0,2] model.mdl
+                        [ Button.raised
+                        , Button.colored
+                        , Button.ripple
+                        , Button.onClick ShowAddEntryModal
+                        ]
+                        [ text "Add Entry"]
+                    ]
+            , div [ class "entries" ] <|
+                if model.entries == []
+                then [ div [ class "no-entries" ] [ text "No entries have been added yet." ] ]
+                else List.map (renderEntry model) model.entries
+            ]
+
+    -- admin tab with list of users
+    usersTab =
+        div [ class "users-tab" ]
+            [ div [ class "add-user-area" ]
+                [ Button.render Mdl [0,3] model.mdl
+                    [ Button.raised
+                    , Button.colored
+                    , Button.ripple
+                    , Button.onClick ShowAddUserModal
+                    ]
+                    [ text "Add User"]
+                ]
+            , div [ class "users" ]
+                (Dict.foldr (\k v users -> renderUser model v :: users) [] model.users)
+            ]
+
   in
     div [ class "content" ]
         [ div [ class "top" ]
@@ -514,28 +584,32 @@ view model =
                     [ Loading.indeterminate
                     ]
             ]
-        , isLoggedIn ?
-            div [ class "add-entry-area" ]
-                [ Button.render Mdl [0,2] model.mdl
-                    [ Button.raised
-                    , Button.colored
-                    , Button.ripple
-                    , Button.onClick ShowAddEntryModal
+
+            , isAdmin ?
+                Tabs.render Mdl [0,10] model.mdl
+                    [ Tabs.ripple
+                    , Tabs.onSelectTab (\i -> SelectTab (if i == 0 then EntriesTab else UsersTab))
+                    , Tabs.activeTab (if model.tab == EntriesTab then 0 else 1)
                     ]
-                    [ text "Add Entry"]
-                , isAdmin ?
-                    Button.render Mdl [0,3] model.mdl
-                        [ Button.raised
-                        , Button.colored
-                        , Button.ripple
-                        , Button.onClick ShowAddUserModal
+                    [ Tabs.label
+                        [ Options.center ]
+                        [ Icon.i "list"
+                        , Options.span [ css "width" "4px" ] []
+                        , text "Entries"
                         ]
-                        [ text "Add User"]
-                ]
-        , div [ class "entries" ] <|
-            if model.entries == []
-            then [ div [ class "no-entries" ] [ text "No entries have been added yet." ] ]
-            else List.map (renderEntry model) model.entries
+                    , Tabs.label
+                        [ Options.center ]
+                        [ Icon.i "group"
+                        , Options.span [ css "width" "4px" ] []
+                        , text "Users"
+                        ]
+                    ]
+                    [ case model.tab of
+                        EntriesTab -> entriesTab
+                        UsersTab -> usersTab
+                    ]
+            , not isAdmin ?
+                entriesTab
         , div [ class "modals" ] (List.map (\modalFunc -> modalFunc (TheModel model)) model.modals)
         ]
 
@@ -561,6 +635,7 @@ renderEntry : Model -> Entry -> Html Msg
 renderEntry model e =
   let
     isMine = Maybe.map .name model.user == Just e.user
+    isAdmin = Maybe.map .userType model.user == Just Admin
     entryClass = case e.entryType of
         Talk -> "entry-talk"
         Project -> "entry-project"
@@ -574,14 +649,28 @@ renderEntry model e =
   in
     div [ class ("entry " ++ entryClass) ]
         [ div [ class "title" ]
-            [ div [ class "icon" ] [ entryIcon ]
-            , if isMine
+            [ entryIcon
+            , if isAdmin || isMine
                 then a [ class "text link", onClick (ShowEditEntryModal e) ] [ text e.name ]
                 else div [ class "text" ] [ text e.name ]
             ]
         , div [ class "description" ] [ text e.description ]
         , div [ class "user"] [ text ("By " ++ entryUser) ]
         , div [ class "duration" ] [ span [] [ text <| (toString entryHours)++"h" ] ]
+        ]
+
+renderUser : Model -> User -> Html Msg
+renderUser model user =
+  let
+    isAdmin = user.userType == Admin
+  in
+    div [ class ("user " ++ if isAdmin then "user-admin" else "user-normal") ]
+        [ div [ class "title" ]
+            [ Icon.i (if isAdmin then "star" else "person")
+            , a [ class "text link", onClick (ShowEditUserModal user) ] [ text user.name ]
+            ]
+        , div [ class "name" ] [ text user.fullName ]
+        , div [ class "type"] [ text (if isAdmin then "Administrator" else "Normal User") ]
         ]
 
 loginModal : Model -> ModalOptions Msg Model
@@ -691,6 +780,14 @@ logoutModal model =
   in
     choiceModal opts model
 
+editUserModal : Model -> ModalOptions Msg Model
+editUserModal model =
+    { defaultModalOptions
+    | title = text "Edit User"
+    , isLoading = \model -> model.userSaving
+    , content = userModalHtml True model
+    }
+
 editCurrentUserModal : Model -> ModalOptions Msg Model
 editCurrentUserModal model =
     { defaultModalOptions
@@ -710,6 +807,7 @@ addUserModal model =
 userModalHtml : Bool -> Model -> Html Msg
 userModalHtml isEditMode model =
   let
+    isAdmin = Maybe.map .userType model.user == Just Admin
     isMe = isEditMode && Maybe.map .name model.user == Just model.userName
     userType = case model.userType of
         Admin -> "Administrator"
@@ -731,7 +829,7 @@ userModalHtml isEditMode model =
                     [ Textfield.onInput UpdateUserFullName
                     , Textfield.value model.userFullName
                     ]
-            , not isEditMode ?
+            , (not isMe && (isAdmin || not isEditMode)) ?
                 (inputRow "Type" <|
                     div [ class "type-inputs" ]
                         [ Toggles.radio Mdl [10,2] model.mdl
@@ -758,9 +856,18 @@ userModalHtml isEditMode model =
                         , cs "set-password-button"
                         ]
                         [ text "Set Password" ])
+            , (isAdmin && not isMe) ?
+                (inputRow "Reset Password" <|
+                    Button.render Mdl [10,5] model.mdl
+                        [ Button.raised
+                        , Button.colored
+                        , Button.onClick ShowResetPassword
+                        , cs "set-password-button"
+                        ]
+                        [ text "Reset Password" ])
             ]
         , div [ class "bottom-row" ]
-            [ Button.render Mdl [10,5] model.mdl
+            [ Button.render Mdl [10,6] model.mdl
                 [ Button.raised
                 , Button.colored
                 , Button.disabled `when` (model.userName == "" || model.userFullName == "")
@@ -896,6 +1003,19 @@ inputRow title html =
         [ td [ class ("input-name input-name-"++key) ] [ text title ]
         , td [ class "input-widget" ] [ html ]
         ]
+
+resetPasswordModal : Model -> ModalOptions Msg Model
+resetPasswordModal model =
+  let
+    opts =
+        { defaultWarningModalOptions
+        | title = "Reset Password"
+        , message = "Are you sure you want to reset this users password?"
+        , onPerform = Just DoResetPassword
+        , performText = "Reset"
+        }
+  in
+    choiceModal opts model
 
 removeEntryModal : Model -> ModalOptions Msg Model
 removeEntryModal model =
