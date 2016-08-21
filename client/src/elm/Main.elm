@@ -857,7 +857,7 @@ userModalHtml isEditMode model =
                         , cs "set-password-button"
                         ]
                         [ text "Set Password" ])
-            , (isAdmin && not isMe) ?
+            , (isEditMode && isAdmin && not isMe) ?
                 (inputRow "Reset Password" <|
                     Button.render Mdl [10,5] model.mdl
                         [ Button.raised
