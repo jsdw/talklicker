@@ -21,7 +21,7 @@ import Material.Menu as Menu
 
 import Api
 import Api.Entries as Entries exposing (Entry, EntryType(..), EntryError(..))
-import Api.Users as Users exposing (User, LoginError(..))
+import Api.Users as Users exposing (User, UserType(..), LoginError(..))
 
 --
 -- Model
@@ -47,6 +47,13 @@ model =
     , setPasswordFirst = ""
     , setPasswordSecond = ""
     , setPasswordSaving = False
+
+    -- add/edit user modal:
+    , userName = ""
+    , userFullName = ""
+    , userType = NormalUser
+    , userSaving = False
+    , userError = False
 
     -- entry stuff for add/edit:
     , entryId = ""
@@ -80,6 +87,13 @@ type alias Model =
     , setPasswordFirst : String
     , setPasswordSecond : String
     , setPasswordSaving : Bool
+
+    -- add/edit user modal:
+    , userName : String
+    , userFullName : String
+    , userType : UserType
+    , userSaving : Bool
+    , userError : Bool
 
     -- entry stuff for add/edit:
     , entryId : String
@@ -125,6 +139,16 @@ type Msg
     | SetPasswordSuccess
     | SetPasswordFailed
 
+    -- add/edit user modal:
+    | ShowEditCurrentUserModal
+    | UpdateUserName String
+    | UpdateUserFullName String
+    | UpdateUserType UserType
+    | DoEditUser
+    | EditUserSuccess User
+    | EditUserFailed
+    | DoAddUser
+
     -- add/edit entry modal:
     | ShowAddEntryModal
     | ShowEditEntryModal Entry
@@ -161,13 +185,13 @@ update msg model = case logMsg msg of
     UpdateCoreDetails core ->
         showSetPasswordIfNeeded { model | loading = False, user = core.currentUser, entries = core.entries, users = core.users } ! []
     LogOut ->
-        showModal model logoutModal ! []
+        showModal logoutModal model ! []
     DoLogout ->
         { model | user = Nothing } ! [Task.perform (always Noop) (always Noop) Users.logout]
 
     -- login modal:
     ShowLoginModal ->
-        showModal model loginModal ! []
+        showModal loginModal model ! []
     LoginUserName str ->
         { model | loginUserName = str } ! []
     LoginPassword str ->
@@ -180,6 +204,24 @@ update msg model = case logMsg msg of
         (showSetPasswordIfNeeded <| resetLoginState <| closeTopModal { model | user = Just user }) ! []
     ClearLoginDetails ->
         resetLoginState model ! []
+
+    -- add/edit user modal:
+    ShowEditCurrentUserModal ->
+        showModal editCurrentUserModal (prepareEditCurrentUser model) ! []
+    UpdateUserName str ->
+        { model | userName = str } ! []
+    UpdateUserFullName str ->
+        { model | userFullName = str } ! []
+    UpdateUserType ty ->
+        { model | userType = ty } ! []
+    DoEditUser ->
+        { model | userSaving = True, userError = False } ! [doEditUser model]
+    EditUserSuccess user ->
+        (closeTopModal <| updateModelWithUser user { model | userSaving = False } ) ! []
+    EditUserFailed ->
+        { model | userSaving = False, userError = True }  ! []
+    DoAddUser ->
+        model ! []
 
     -- set password modal:
     SetPasswordFirst str ->
@@ -195,9 +237,9 @@ update msg model = case logMsg msg of
 
     -- add/edit entry modals:
     ShowAddEntryModal ->
-        prepareModelForAddEntry (showModal model addEntryModal) ! []
+        showModal addEntryModal (prepareModelForAddEntry model) ! []
     ShowEditEntryModal entry ->
-        prepareModelForEditEntry entry (showModal model editEntryModal) ! []
+        showModal editEntryModal (prepareModelForEditEntry entry model) ! []
     UpdateEntryName val ->
         { model | entryName = val } ! []
     UpdateEntryDescription val ->
@@ -224,7 +266,7 @@ update msg model = case logMsg msg of
 
     -- remove an entry
     ShowRemoveEntryModal ->
-        showModal model removeEntryModal ! []
+        showModal removeEntryModal model ! []
     DoRemoveEntry ->
       let
         entries' = List.filter (\e -> e.id /= model.entryId) model.entries
@@ -271,7 +313,7 @@ logMsg msg =
 showSetPasswordIfNeeded : Model -> Model
 showSetPasswordIfNeeded model =
     if Maybe.map .hasPass model.user == Just False
-        then showModal model (setPasswordModal True)
+        then showModal (setPasswordModal True) model
         else model
 
 prepareModelForAddEntry : Model -> Model
@@ -303,8 +345,23 @@ prepareModelForEditEntry entry model =
     , entryError = Nothing
     }
 
-showModal : Model -> (Model -> ModalOptions Msg Model) -> Model
-showModal model modal =
+prepareEditCurrentUser : Model -> Model
+prepareEditCurrentUser model =
+  let
+    update u =
+        { model
+        | userName = u.name
+        , userFullName = u.fullName
+        , userType = u.userType
+        }
+  in
+    case model.user of
+        Nothing -> model
+        Just u -> update u
+
+
+showModal : (Model -> ModalOptions Msg Model) -> Model -> Model
+showModal modal model =
   let
     modalShower theModel = case theModel of
         TheModel m -> renderModal m (modal m)
@@ -333,11 +390,18 @@ doLogin model =
 doSetPassword : Model -> Cmd Msg
 doSetPassword model =
   let
-    setPass u = Users.set u.name { fullName = u.fullName, userType = u.userType, pass = Just model.setPasswordFirst }
+    setPass u = Users.set u.name { fullName = Nothing, userType = Nothing, pass = Just model.setPasswordFirst }
   in
     case model.user of
         Nothing -> Cmd.none
         Just u -> Task.perform (always SetPasswordFailed) (always SetPasswordSuccess) (setPass u)
+
+doEditUser : Model -> Cmd Msg
+doEditUser model =
+  let
+    editUser = Users.set model.userName { fullName = Just model.userFullName, userType = Just model.userType, pass = Nothing }
+  in
+    Task.perform (always EditUserFailed) EditUserSuccess editUser
 
 resetLoginState : Model -> Model
 resetLoginState model =
@@ -372,6 +436,17 @@ doEditEntry model =
   in
     Task.perform EditEntryFailed EditEntrySuccess (Entries.set entry)
 
+updateModelWithUser : User -> Model -> Model
+updateModelWithUser user model =
+  let
+    updateCurrUser m = case m.user of
+        Nothing -> m
+        Just u -> { m | user = if u.name == user.name then Just user else Just u }
+    updateUserList m =
+        { m | users = Dict.map (\_ u -> if u.name == user.name then user else u) m.users }
+  in
+    model |> updateCurrUser |> updateUserList
+
 doRemoveEntry : Model -> Cmd Msg
 doRemoveEntry model =
   Task.perform ApiError (\_ -> DoneRemoveEntry) (Entries.remove model.entryId)
@@ -388,6 +463,9 @@ view model =
   let
     isLoggedIn =
         isJust model.user
+    details = case model.user of
+        Nothing -> { fullName = "Unknown User" }
+        Just u -> { fullName = u.fullName }
   in
     div [ class "content" ]
         [ div [ class "top" ]
@@ -396,13 +474,9 @@ view model =
                 ]
             , div [ class "right" ]
                 [ isLoggedIn ?
-                    Button.render Mdl [0,1] model.mdl
-                        [ Button.colored
-                        , Button.ripple
-                        , Button.onClick LogOut
-                        , cs "logout-button"
-                        ]
-                        [ text "Log Out"]
+                    text details.fullName
+                , isLoggedIn ?
+                    profileMenu model
                 , not isLoggedIn ?
                     Button.render Mdl [0,1] model.mdl
                         [ Button.colored
@@ -432,6 +506,24 @@ view model =
             then [ div [ class "no-entries" ] [ text "No entries have been added yet." ] ]
             else List.map (renderEntry model) model.entries
         , div [ class "modals" ] (List.map (\modalFunc -> modalFunc (TheModel model)) model.modals)
+        ]
+
+profileMenu : Model -> Html Msg
+profileMenu model =
+  let
+    i name =
+        Icon.view name [ css "width" "40px" ]
+    padding =
+        css "padding-right" "24px"
+  in
+    Menu.render Mdl [1,1] model.mdl
+        [ Menu.ripple, Menu.bottomRight ]
+        [ Menu.item
+            [ Menu.onSelect ShowEditCurrentUserModal, padding ]
+            [ i "person", text "Profile" ]
+        , Menu.item
+            [ Menu.onSelect LogOut, padding ]
+            [ i "lock", text "Log out" ]
         ]
 
 renderEntry : Model -> Entry -> Html Msg
@@ -560,12 +652,48 @@ logoutModal model =
     opts =
         { defaultWarningModalOptions
         | title = "Logout"
+        , icon = "lock"
         , message = "Are you sure you want to log out?"
         , onPerform = Just DoLogout
         , performText = "Log out"
         }
   in
     choiceModal opts model
+
+editCurrentUserModal : Model -> ModalOptions Msg Model
+editCurrentUserModal model =
+    { defaultModalOptions
+    | title = text "Profile"
+    , content = userModalHtml True model
+    }
+
+userModalHtml : Bool -> Model -> Html Msg
+userModalHtml isEditMode model =
+  let
+    isMe = isEditMode && Maybe.map .name model.user == Just model.userName
+  in
+    div [ class "user-modal" ]
+        [ table [ class "inputs" ]
+            [ inputRow "Name" <|
+                Textfield.render Mdl [10,0] model.mdl
+                    [ Textfield.onInput UpdateUserFullName
+                    , Textfield.value model.userFullName
+                    ]
+            ]
+        , div [ class "bottom-row" ]
+            [ Button.render Mdl [0] model.mdl
+                [ Button.raised
+                , Button.colored
+                , Button.disabled `when` (model.userName == "" || model.userFullName == "")
+                , Button.onClick (if isEditMode then DoEditUser else DoAddUser)
+                , cs "add-user-button"
+                ]
+                [ text (if isMe then "Save" else if isEditMode then "Update User" else "Add User") ]
+            , model.userError ?
+                div [ class "error" ]
+                    [ text "Something peculiar happened" ]
+            ]
+        ]
 
 addEntryModal : Model -> ModalOptions Msg Model
 addEntryModal model =

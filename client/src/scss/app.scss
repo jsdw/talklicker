@@ -11,11 +11,18 @@ body, html {
 	justify-content: space-between;
 	position: relative;
 	color: white;
-	background-color: black;
+	background-color: #6d6fab;
 	padding: 0.5em 1em;
+	border-bottom: 2px solid purple;
 
-	.logout-button, .login-button {
-		color: rgb(255, 255, 255) !important;
+	> .right {
+		display: flex;
+		align-items: center;
+
+		> .login-button {
+			color: rgb(255, 255, 255) !important;
+		}
+
 	}
 
 	.loading-overlay {
@@ -195,17 +202,35 @@ body, html {
 	}
 }
 
+@mixin input-table {
+
+	//space between rows:
+	border-collapse: separate;
+	border-spacing: 10px 15px;
+
+	.input-name {
+		padding-right: 1em;
+	}
+
+}
+
+.user-modal {
+
+	> .inputs {
+		@include input-table;
+	}
+	> .bottom-row {
+		@include modal-bottom-row;
+	}
+
+}
+
 .entry-modal {
 
 	> .inputs {
 
-		//space between rows:
-		border-collapse: separate;
-		border-spacing: 10px 15px;
+		@include input-table;
 
-		.input-name {
-			padding-right: 1em;
-		}
 		.input-row {
 			> .input-name {
 				vertical-align: middle;
