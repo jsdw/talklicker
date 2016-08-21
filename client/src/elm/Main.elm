@@ -122,6 +122,7 @@ type Msg
     | UpdateCoreDetails CoreDetails
     | LogOut
     | DoLogout
+    | ShowSetPasswordModal
 
     -- login modal:
     | ShowLoginModal
@@ -141,6 +142,7 @@ type Msg
 
     -- add/edit user modal:
     | ShowEditCurrentUserModal
+    | ShowAddUserModal
     | UpdateUserName String
     | UpdateUserFullName String
     | UpdateUserType UserType
@@ -188,6 +190,8 @@ update msg model = case logMsg msg of
         showModal logoutModal model ! []
     DoLogout ->
         { model | user = Nothing } ! [Task.perform (always Noop) (always Noop) Users.logout]
+    ShowSetPasswordModal ->
+        showModal (setPasswordModal False) { model | setPasswordFirst = "", setPasswordSecond = "" } ! []
 
     -- login modal:
     ShowLoginModal ->
@@ -208,6 +212,8 @@ update msg model = case logMsg msg of
     -- add/edit user modal:
     ShowEditCurrentUserModal ->
         showModal editCurrentUserModal (prepareEditCurrentUser model) ! []
+    ShowAddUserModal ->
+        showModal addUserModal (prepareAddUser model) ! []
     UpdateUserName str ->
         { model | userName = str } ! []
     UpdateUserFullName str ->
@@ -216,12 +222,12 @@ update msg model = case logMsg msg of
         { model | userType = ty } ! []
     DoEditUser ->
         { model | userSaving = True, userError = False } ! [doEditUser model]
+    DoAddUser ->
+        { model | userSaving = True, userError = False } ! [doAddUser model]
     EditUserSuccess user ->
         (closeTopModal <| updateModelWithUser user { model | userSaving = False } ) ! []
     EditUserFailed ->
         { model | userSaving = False, userError = True }  ! []
-    DoAddUser ->
-        model ! []
 
     -- set password modal:
     SetPasswordFirst str ->
@@ -359,6 +365,15 @@ prepareEditCurrentUser model =
         Nothing -> model
         Just u -> update u
 
+prepareAddUser : Model -> Model
+prepareAddUser model =
+    { model
+    | userName = ""
+    , userFullName = ""
+    , userType = NormalUser
+    , userSaving = False
+    , userError = False
+    }
 
 showModal : (Model -> ModalOptions Msg Model) -> Model -> Model
 showModal modal model =
@@ -402,6 +417,13 @@ doEditUser model =
     editUser = Users.set model.userName { fullName = Just model.userFullName, userType = Just model.userType, pass = Nothing }
   in
     Task.perform (always EditUserFailed) EditUserSuccess editUser
+
+doAddUser : Model -> Cmd Msg
+doAddUser model =
+  let
+    addUser = Users.add { name = model.userName, fullName = model.userFullName, userType = model.userType, pass = "" }
+  in
+    Task.perform (always EditUserFailed) EditUserSuccess addUser
 
 resetLoginState : Model -> Model
 resetLoginState model =
@@ -464,8 +486,9 @@ view model =
     isLoggedIn =
         isJust model.user
     details = case model.user of
-        Nothing -> { fullName = "Unknown User" }
-        Just u -> { fullName = u.fullName }
+        Nothing -> { fullName = "Unknown User", userType = NormalUser }
+        Just u -> { fullName = u.fullName, userType = u.userType }
+    isAdmin = details.userType == Admin
   in
     div [ class "content" ]
         [ div [ class "top" ]
@@ -493,13 +516,21 @@ view model =
             ]
         , isLoggedIn ?
             div [ class "add-entry-area" ]
-                [ Button.render Mdl [0,1] model.mdl
+                [ Button.render Mdl [0,2] model.mdl
                     [ Button.raised
                     , Button.colored
                     , Button.ripple
                     , Button.onClick ShowAddEntryModal
                     ]
                     [ text "Add Entry"]
+                , isAdmin ?
+                    Button.render Mdl [0,3] model.mdl
+                        [ Button.raised
+                        , Button.colored
+                        , Button.ripple
+                        , Button.onClick ShowAddUserModal
+                        ]
+                        [ text "Add User"]
                 ]
         , div [ class "entries" ] <|
             if model.entries == []
@@ -608,7 +639,7 @@ setPasswordModal bNeedsSetting model =
     { defaultModalOptions
     | title = text "Set Password"
     , isLoading = \model -> model.setPasswordSaving
-    , hideClose = always True
+    , hideClose = always bNeedsSetting
     , content =
         div [ class "set-password-modal" ]
             [ bNeedsSetting ?
@@ -616,14 +647,14 @@ setPasswordModal bNeedsSetting model =
                     [ text "You have not yet set a password. Please do so now." ]
             , div [ class "inputs" ]
                 [ Textfield.render Mdl [71,1] model.mdl
-                    [ Textfield.label "Password"
+                    [ Textfield.label "New Password"
                     , Textfield.floatingLabel
                     , Textfield.password
                     , Textfield.onInput SetPasswordFirst
                     , Textfield.value model.setPasswordFirst
                     ]
                 , Textfield.render Mdl [71,2] model.mdl
-                    [ Textfield.label "Password Again"
+                    [ Textfield.label "New Password Again"
                     , Textfield.floatingLabel
                     , Textfield.password
                     , Textfield.onInput SetPasswordSecond
@@ -668,6 +699,14 @@ editCurrentUserModal model =
     , content = userModalHtml True model
     }
 
+addUserModal : Model -> ModalOptions Msg Model
+addUserModal model =
+    { defaultModalOptions
+    | title = text "Add User"
+    , isLoading = \model -> model.userSaving
+    , content = userModalHtml False model
+    }
+
 userModalHtml : Bool -> Model -> Html Msg
 userModalHtml isEditMode model =
   let
@@ -710,9 +749,18 @@ userModalHtml isEditMode model =
                             ]
                             [ text "Normal User" ]
                         ])
+            , (isEditMode && isMe) ?
+                (inputRow "Password" <|
+                    Button.render Mdl [10,4] model.mdl
+                        [ Button.raised
+                        , Button.colored
+                        , Button.onClick ShowSetPasswordModal
+                        , cs "set-password-button"
+                        ]
+                        [ text "Set Password" ])
             ]
         , div [ class "bottom-row" ]
-            [ Button.render Mdl [0] model.mdl
+            [ Button.render Mdl [10,5] model.mdl
                 [ Button.raised
                 , Button.colored
                 , Button.disabled `when` (model.userName == "" || model.userFullName == "")
@@ -722,7 +770,7 @@ userModalHtml isEditMode model =
                 [ text (if isMe then "Save" else if isEditMode then "Update User" else "Add User") ]
             , model.userError ?
                 div [ class "error" ]
-                    [ text "Something peculiar happened" ]
+                    [ text "Username taken" ]
             ]
         ]
 

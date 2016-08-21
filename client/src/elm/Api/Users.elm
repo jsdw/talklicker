@@ -1,4 +1,4 @@
-module Api.Users exposing (login, LoginError(..), logout, get, set, current, User, UserType(..))
+module Api.Users exposing (login, LoginError(..), logout, get, set, add, current, User, UserType(..))
 
 import Json.Encode as Enc exposing (Value, null)
 import Json.Decode as Dec exposing (Decoder, (:=))
@@ -101,6 +101,24 @@ fromUserType : UserType -> String
 fromUserType ty = case ty of
     Admin -> "Admin"
     NormalUser -> "NormalUser"
+
+--
+-- Add user
+--
+add : { a | fullName : String, name : String, pass : String, userType : UserType } -> Task Error User
+add details =
+  let
+    value = Enc.object
+        [ ("name", Enc.string details.name)
+        , ("fullName", Enc.string details.fullName)
+        , ("pass", Enc.string details.pass)
+        , ("type", userTypeEncoder details.userType) ]
+  in
+    request Post "users" (Just value) userDecoder
+
+--
+--
+--
 
 (?=) : (a -> Value)-> Maybe a -> Value
 (?=) enc a = case a of

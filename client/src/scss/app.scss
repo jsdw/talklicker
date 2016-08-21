@@ -43,6 +43,10 @@ body, html {
 	align-items:center;
 	justify-content:center;
 	padding-top:1em;
+
+	> *:not(:last-child) {
+		margin-right: 10px;
+	}
 }
 
 .entries {
@@ -239,6 +243,14 @@ body, html {
 
 	> .inputs {
 		@include input-table;
+
+		.set-password-button {
+			background-color: rgb(0, 95, 150);
+			&:hover {
+				background-color: rgb(0, 53, 150);
+			}
+		}
+
 	}
 	> .bottom-row {
 		@include modal-bottom-row;

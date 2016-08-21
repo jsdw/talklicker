@@ -135,8 +135,8 @@ setEntry (Session _ sessUser) eId input = do
     -- expects entry to have name and description and nonzero duration if these are set:
     let trueForJust cond mVal = if mVal == Nothing then True else fmap cond mVal == Just True
     throwIf ((<= 0) `trueForJust` eiDuration input) err400{ errReasonPhrase = "BAD_DURATION" }
-    throwIf (null `trueForJust` eiName input) err400{ errReasonPhrase = "BAD_NAME" } 
-    throwIf (null `trueForJust` eiDescription input) err400{ errReasonPhrase = "BAD_DESCRIPTION" } 
+    throwIf (null `trueForJust` eiName input) err400{ errReasonPhrase = "BAD_NAME" }
+    throwIf (null `trueForJust` eiDescription input) err400{ errReasonPhrase = "BAD_DESCRIPTION" }
 
     currTime <- getTimeMillis
 
@@ -189,9 +189,9 @@ addEntry (Session _ sessUser) input = do
 
     -- expects entry to have name and description and nonzero duration
     throwIf (addEntryDuration input <= 0) err400{ errReasonPhrase = "BAD_DURATION" }
-    throwIf (null (addEntryName input)) err400{ errReasonPhrase = "BAD_NAME" } 
-    throwIf (null (addEntryDescription input)) err400{ errReasonPhrase = "BAD_DESCRIPTION" } 
-     
+    throwIf (null (addEntryName input)) err400{ errReasonPhrase = "BAD_NAME" }
+    throwIf (null (addEntryDescription input)) err400{ errReasonPhrase = "BAD_DESCRIPTION" }
+
     currTime <- getTimeMillis
     newId <- Id <$> Id.generate
     mItem <- getItem allEntriesL (\e -> entryId e == newId)
@@ -305,8 +305,8 @@ addUser _ input = do
     mUser <- getItem allUsersL (\u -> userName u == userName input)
     case mUser of
         Nothing -> do
-            passHash <- hashPass (userPass input)
-            toUserOutput <$> addItem allUsersL input{ userPass = passHash }
+            pass <- if null (userPass input) then return "" else hashPass (userPass input)
+            toUserOutput <$> addItem allUsersL input{ userPass = pass }
         Just _ -> throwError err400 -- username taken!
 
 
