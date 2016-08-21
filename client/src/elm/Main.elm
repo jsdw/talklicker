@@ -563,7 +563,8 @@ view model =
     div [ class "content" ]
         [ div [ class "top" ]
             [ div [ class "left" ]
-                [
+                [ span [ class "logo" ]
+                    [ text "TalkLicker" ]
                 ]
             , div [ class "right" ]
                 [ isLoggedIn ?
