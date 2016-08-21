@@ -107,6 +107,7 @@ type Msg
     = ApiError Api.Error
     | UpdateCoreDetails CoreDetails
     | LogOut
+    | DoLogout
 
     -- login modal:
     | ShowLoginModal
@@ -160,6 +161,8 @@ update msg model = case logMsg msg of
     UpdateCoreDetails core ->
         showSetPasswordIfNeeded { model | loading = False, user = core.currentUser, entries = core.entries, users = core.users } ! []
     LogOut ->
+        showModal model logoutModal ! []
+    DoLogout ->
         { model | user = Nothing } ! [Task.perform (always Noop) (always Noop) Users.logout]
 
     -- login modal:
@@ -550,6 +553,19 @@ setPasswordModal bNeedsSetting model =
                 ]
             ]
     }
+
+logoutModal : Model -> ModalOptions Msg Model
+logoutModal model =
+  let
+    opts =
+        { defaultWarningModalOptions
+        | title = "Logout"
+        , message = "Are you sure you want to log out?"
+        , onPerform = Just DoLogout
+        , performText = "Log out"
+        }
+  in
+    choiceModal opts model
 
 addEntryModal : Model -> ModalOptions Msg Model
 addEntryModal model =
