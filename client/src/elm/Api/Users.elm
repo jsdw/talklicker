@@ -84,15 +84,20 @@ toUserType str =
 -- Set user
 --
 
-set : String -> { a | fullName : String, pass : Maybe String, userType : String } -> Task Error User
+set : String -> { a | fullName : String, pass : Maybe String, userType : UserType } -> Task Error User
 set username details =
   let
     value = Enc.object
         [ ("fullName", Enc.string details.fullName)
         , ("pass", Enc.string ?= details.pass)
-        , ("type", Enc.string details.userType) ]
+        , ("type", Enc.string (fromUserType details.userType)) ]
   in
     request Post ("users" :> username) (Just value) userDecoder
+
+fromUserType : UserType -> String
+fromUserType ty = case ty of
+    Admin -> "Admin"
+    NormalUser -> "NormalUser"
 
 (?=) : (a -> Value)-> Maybe a -> Value
 (?=) enc a = case a of

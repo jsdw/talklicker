@@ -43,6 +43,11 @@ model =
     , loggingIn = False
     , loginError = Nothing
 
+    -- set password modal:
+    , setPasswordFirst = ""
+    , setPasswordSecond = ""
+    , setPasswordSaving = False
+
     -- entry stuff for add/edit:
     , entryId = ""
     , entryUser = ""
@@ -70,6 +75,11 @@ type alias Model =
     , loginPassword : String
     , loggingIn : Bool
     , loginError : Maybe LoginError
+
+    -- set password modal:
+    , setPasswordFirst : String
+    , setPasswordSecond : String
+    , setPasswordSaving : Bool
 
     -- entry stuff for add/edit:
     , entryId : String
@@ -107,6 +117,13 @@ type Msg
     | LoginSuccess User
     | ClearLoginDetails
 
+    -- set password modal:
+    | SetPasswordFirst String
+    | SetPasswordSecond String
+    | DoSetPassword
+    | SetPasswordSuccess
+    | SetPasswordFailed
+
     -- add/edit entry modal:
     | ShowAddEntryModal
     | ShowEditEntryModal Entry
@@ -141,7 +158,7 @@ update msg model = case logMsg msg of
     ApiError error ->
         { model | loading = False, error = toString error } ! []
     UpdateCoreDetails core ->
-        { model | loading = False, user = core.currentUser, entries = core.entries, users = core.users } ! []
+        showSetPasswordIfNeeded { model | loading = False, user = core.currentUser, entries = core.entries, users = core.users } ! []
     LogOut ->
         { model | user = Nothing } ! [Task.perform (always Noop) (always Noop) Users.logout]
 
@@ -157,9 +174,21 @@ update msg model = case logMsg msg of
     LoginFailed err ->
         { model | loggingIn = False, loginError = Just err } ! []
     LoginSuccess user ->
-        (resetLoginState <| closeTopModal { model | user = Just user }) ! []
+        (showSetPasswordIfNeeded <| resetLoginState <| closeTopModal { model | user = Just user }) ! []
     ClearLoginDetails ->
         resetLoginState model ! []
+
+    -- set password modal:
+    SetPasswordFirst str ->
+        { model | setPasswordFirst = str } ! []
+    SetPasswordSecond str ->
+        { model | setPasswordSecond = str } ! []
+    DoSetPassword ->
+        { model | setPasswordSaving = True } ! [doSetPassword model]
+    SetPasswordSuccess ->
+        closeTopModal { model | setPasswordSaving = False, setPasswordFirst = "", setPasswordSecond = "" } ! []
+    SetPasswordFailed ->
+        closeTopModal { model | setPasswordSaving = False, setPasswordFirst = "", setPasswordSecond = "" } ! []
 
     -- add/edit entry modals:
     ShowAddEntryModal ->
@@ -226,11 +255,21 @@ logMsg : Msg -> Msg
 logMsg msg =
   let
     log = Debug.log "update:"
+    pwLog pw = String.map (\_ -> '*') pw
     doLog = case msg of
-      LoginPassword p -> log (LoginPassword <| String.map (\_ -> '*') p)
+      LoginPassword p -> log (LoginPassword <| pwLog p)
+      SetPasswordFirst p -> log (SetPasswordFirst <| pwLog p)
+      SetPasswordSecond p -> log (SetPasswordSecond <| pwLog p)
       a -> log a
   in
     msg
+
+-- if the user doesn't have a password set, this shows the set password modal:
+showSetPasswordIfNeeded : Model -> Model
+showSetPasswordIfNeeded model =
+    if Maybe.map .hasPass model.user == Just False
+        then showModal model (setPasswordModal True)
+        else model
 
 prepareModelForAddEntry : Model -> Model
 prepareModelForAddEntry model =
@@ -287,6 +326,15 @@ doLogin model =
     login = Users.login model.loginUserName model.loginPassword
   in
     Task.perform LoginFailed LoginSuccess login
+
+doSetPassword : Model -> Cmd Msg
+doSetPassword model =
+  let
+    setPass u = Users.set u.name { fullName = u.fullName, userType = u.userType, pass = Just model.setPasswordFirst }
+  in
+    case model.user of
+        Nothing -> Cmd.none
+        Just u -> Task.perform (always SetPasswordFailed) (always SetPasswordSuccess) (setPass u)
 
 resetLoginState : Model -> Model
 resetLoginState model =
@@ -345,11 +393,21 @@ view model =
                 ]
             , div [ class "right" ]
                 [ isLoggedIn ?
-                    button' [ onClick LogOut, class "logout-button" ]
-                        [ text "Log Out" ]
+                    Button.render Mdl [0,1] model.mdl
+                        [ Button.colored
+                        , Button.ripple
+                        , Button.onClick LogOut
+                        , cs "logout-button"
+                        ]
+                        [ text "Log Out"]
                 , not isLoggedIn ?
-                    button' [ onClick ShowLoginModal, class "login-button" ]
-                        [ text "Log In" ]
+                    Button.render Mdl [0,1] model.mdl
+                        [ Button.colored
+                        , Button.ripple
+                        , Button.onClick ShowLoginModal
+                        , cs "login-button"
+                        ]
+                        [ text "Log In"]
                 ]
             , model.loading ?
                 div [ class "loading-overlay" ]
@@ -400,11 +458,6 @@ renderEntry model e =
         , div [ class "duration" ] [ span [] [ text <| (toString entryHours)++"h" ] ]
         ]
 
-button' : List (Attribute a) -> List (Html a) -> Html a
-button' attrs children =
-    div [ class "button" ]
-        [ div attrs children ]
-
 loginModal : Model -> ModalOptions Msg Model
 loginModal model =
   let
@@ -418,7 +471,7 @@ loginModal model =
     | title = text "Login"
     , onClose = Just ClearLoginDetails
     , preventClose = \model -> model.loggingIn
-    , isLoading = \model -> Debug.log "loggingIn" model.loggingIn
+    , isLoading = \model -> model.loggingIn
     , content =
         div [ class "login-modal" ]
             [ div [ class "inputs" ]
@@ -448,6 +501,52 @@ loginModal model =
                 , model.loginError ??
                     div [ class "error" ]
                         [ text loginErrorString ]
+                ]
+            ]
+    }
+
+setPasswordModal : Bool -> Model -> ModalOptions Msg Model
+setPasswordModal bNeedsSetting model =
+  let
+    invalid = model.setPasswordFirst /= model.setPasswordSecond || String.length model.setPasswordFirst == 0
+  in
+    { defaultModalOptions
+    | title = text "Set Password"
+    , isLoading = \model -> model.setPasswordSaving
+    , hideClose = always True
+    , content =
+        div [ class "set-password-modal" ]
+            [ bNeedsSetting ?
+                div [ class "needs-setting-text" ]
+                    [ text "You have not yet set a password. Please do so now." ]
+            , div [ class "inputs" ]
+                [ Textfield.render Mdl [71,1] model.mdl
+                    [ Textfield.label "Password"
+                    , Textfield.floatingLabel
+                    , Textfield.password
+                    , Textfield.onInput SetPasswordFirst
+                    , Textfield.value model.setPasswordFirst
+                    ]
+                , Textfield.render Mdl [71,2] model.mdl
+                    [ Textfield.label "Password Again"
+                    , Textfield.floatingLabel
+                    , Textfield.password
+                    , Textfield.onInput SetPasswordSecond
+                    , Textfield.value model.setPasswordSecond
+                    ]
+                ]
+            , div [ class "bottom-row" ]
+                [ Button.render Mdl [71,3] model.mdl
+                    [ Button.raised
+                    , Button.colored
+                    , Button.disabled `when` invalid
+                    , Button.onClick DoSetPassword
+                    , cs "set-password-button"
+                    ]
+                    [ text "Set Password" ]
+                , (invalid && model.setPasswordSecond /= "") ?
+                    div [ class "error" ]
+                        [ text "Passwords do not match" ]
                 ]
             ]
     }
@@ -665,7 +764,7 @@ choiceModal opts model =
 --
 
 renderModal : Model -> ModalOptions Msg Model -> Html Msg
-renderModal model {title,content,onClose,preventClose,isLoading} =
+renderModal model {title,content,onClose,preventClose,hideClose,isLoading} =
   let
     closeMsgs = All ([CloseTopModal] ++ case onClose of
         Nothing -> []
@@ -675,13 +774,14 @@ renderModal model {title,content,onClose,preventClose,isLoading} =
         [ div [ class "modal-inner" ]
             [ div [ class "title" ]
                 [ div [ class "title-inner" ] [ title ]
-                , Button.render Mdl [100,0] model.mdl
-                    [ Button.icon
-                    , Button.plain
-                    , Button.onClick closeMsgs
-                    , Button.disabled `when` preventClose model
-                    ]
-                    [ Icon.i "close" ]
+                , not (hideClose model) ?
+                    Button.render Mdl [100,0] model.mdl
+                        [ Button.icon
+                        , Button.plain
+                        , Button.onClick closeMsgs
+                        , Button.disabled `when` preventClose model
+                        ]
+                        [ Icon.i "close" ]
                 , isLoading model ?
                     div [ class "loading-overlay" ]
                         [ Loading.indeterminate
@@ -697,6 +797,7 @@ type alias ModalOptions msg model =
     { title : Html msg
     , content : Html msg
     , preventClose : model -> Bool
+    , hideClose : model -> Bool
     , isLoading : model -> Bool
     , onClose : Maybe msg
     }
@@ -705,8 +806,9 @@ defaultModalOptions : ModalOptions Msg Model
 defaultModalOptions =
     { title = text ""
     , content = div [] []
-    , preventClose = \_ -> False
-    , isLoading = \_ -> False
+    , preventClose = always False
+    , hideClose = always False
+    , isLoading = always False
     , onClose = Nothing
     }
 
