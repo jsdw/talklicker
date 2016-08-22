@@ -40,6 +40,16 @@ body > .content {
 			> .logo {
 				font-weight: bold;
 				font-size: 20px;
+				display: flex;
+				align-items: center;
+
+				.logo-image {
+					height: 24px;
+					width: auto;
+					margin-left: 4px;
+					margin-top: -4px;
+				}
+
 			}
 		}
 

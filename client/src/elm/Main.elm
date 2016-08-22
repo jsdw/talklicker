@@ -566,7 +566,9 @@ view model =
         [ div [ class "top" ]
             [ div [ class "left" ]
                 [ span [ class "logo" ]
-                    [ text "TalkLicker" ]
+                    [ text "TalkLicker"
+                    , img [ src "static/logo.svg", class "logo-image" ] []
+                    ]
                 ]
             , div [ class "right" ]
                 [ isLoggedIn ?
