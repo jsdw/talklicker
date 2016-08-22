@@ -593,6 +593,7 @@ view model =
                     [ Tabs.ripple
                     , Tabs.onSelectTab (\i -> SelectTab (if i == 0 then EntriesTab else UsersTab))
                     , Tabs.activeTab (if model.tab == EntriesTab then 0 else 1)
+                    , cs "main"
                     ]
                     [ Tabs.label
                         [ Options.center ]
@@ -612,7 +613,8 @@ view model =
                         UsersTab -> usersTab
                     ]
             , not isAdmin ?
-                entriesTab
+                div [ class "main" ]
+                    [ entriesTab ]
         , div [ class "modals" ] (List.map (\modalFunc -> modalFunc (TheModel model)) model.modals)
         ]
 
@@ -674,6 +676,7 @@ renderUser model user =
             ]
         , div [ class "name" ] [ text user.fullName ]
         , div [ class "type"] [ text (if isAdmin then "Administrator" else "Normal User") ]
+        , not user.hasPass ? div [ class "is-new" ] [ text "New" ]
         ]
 
 loginModal : Model -> ModalOptions Msg Model
