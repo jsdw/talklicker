@@ -23,6 +23,7 @@ main = do
     let arg key = Map.lookup key args
     let Just fileName = arg "database" <|> arg "db" <|> arg "d" <|> Just "talklicker.json"
     let Just staticDir = arg "static-files" <|> arg "static" <|> arg "s" <|> Just "static"
+    let Just port = (arg "port" <|> arg "p" >>= readMaybe) <|> Just 8080
 
     appState <- AppState <$> Database.init fileName <*> Sessions.empty
 
@@ -30,5 +31,9 @@ main = do
     let context = hasSessionHandler appState :. isAdminHandler appState :. EmptyContext
     let server = serveWithContext (Proxy :: Proxy (Routes :<|> Raw)) context handlers
 
-    run 8080 server
+    run port server
 
+readMaybe :: Read a => String -> Maybe a
+readMaybe str = case reads str of
+    [] -> Nothing
+    (a,_):_ -> Just a

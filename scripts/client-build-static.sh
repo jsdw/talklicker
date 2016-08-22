@@ -15,15 +15,5 @@ if [ ! -d build ]
 then mkdir build
 fi
 
-
-if [ ! -e "$(pwd)/build/static" -a -e "$(pwd)/src/static" ]
-then
-	ln -s "$(pwd)/src/static" "$(pwd)/build/static"
-	echo "Linking static dir"
-fi
-
-if [ ! -e "$(pwd)/build/index.html" ]
-then
-	ln -s "$(pwd)/src/index.html" "$(pwd)/build/index.html"
-	echo "Linking index.html"
-fi
+rsync -av "$(pwd)/src/static/" "$(pwd)/build/static"
+rsync "$(pwd)/src/index.html" "$(pwd)/build/index.html"

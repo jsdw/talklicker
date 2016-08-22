@@ -24,6 +24,6 @@ stack install
 cd ..
 echo "=== starting talklicker ==="
 if [ $(which talklicker) ]
-then talklicker --static client/build --db server/talklicker.json
+then talklicker --static client/build --db server/talklicker.json --port 9090
 else echo "'talklicker' binary not found in your PATH :("
 fi
