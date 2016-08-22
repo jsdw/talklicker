@@ -500,8 +500,10 @@ updateModelWithUser user model =
         Just u -> { m | user = if u.name == user.name then Just user else Just u }
     updateUserList m =
         { m | users = Dict.map (\_ u -> if u.name == user.name then user else u) m.users }
+    appendToUserList m =
+        { m | users = if Dict.member user.name m.users then m.users else Dict.insert user.name user m.users }
   in
-    model |> updateCurrUser |> updateUserList
+    model |> updateCurrUser |> updateUserList |> appendToUserList
 
 doRemoveEntry : Model -> Cmd Msg
 doRemoveEntry model =
