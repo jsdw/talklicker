@@ -708,7 +708,7 @@ loginModal model =
     loginErrorString = case model.loginError of
         Just LoginBadUser -> "Wrong username"
         Just LoginBadPassword -> "Wrong password"
-        _ -> "Network error"
+        _ -> "Something Untoward Transpired"
   in
     { defaultModalOptions
     | title = text "Login"
