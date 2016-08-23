@@ -187,8 +187,8 @@ body > .content {
 						align-self: flex-end;
 
 						border-radius: 15px;
-						width: 30px;
-						height: 30px;
+						width: 32px;
+						height: 32px;
 
 						background-color: #e4e4e4;
 						color: #323133;
@@ -388,6 +388,9 @@ body > .content {
 							> .icon {
 								display: flex;
 								padding-right: 15px;
+							}
+							> .message {
+								width: 300px;
 							}
 						}
 						> .buttons {

@@ -1,4 +1,4 @@
-module Api.Users exposing (login, LoginError(..), logout, get, set, add, current, User, UserType(..))
+module Api.Users exposing (login, LoginError(..), logout, get, set, add, remove, current, User, UserType(..))
 
 import Json.Encode as Enc exposing (Value, null)
 import Json.Decode as Dec exposing (Decoder, (:=))
@@ -115,6 +115,12 @@ add details =
         , ("type", userTypeEncoder details.userType) ]
   in
     request Post "users" (Just value) userDecoder
+
+--
+-- Remove user
+--
+remove : String -> Task Error ()
+remove userName = request Delete ("users" :> userName) Nothing noResult
 
 --
 --

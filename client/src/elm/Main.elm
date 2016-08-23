@@ -160,6 +160,11 @@ type Msg
     | EditUserFailed
     | DoAddUser
 
+    -- remove a user (from add user modal)
+    | ShowRemoveUserModal
+    | DoRemoveUser
+    | DoneRemoveUser
+
     -- add/edit entry modal:
     | ShowAddEntryModal
     | ShowEditEntryModal Entry
@@ -174,7 +179,7 @@ type Msg
     | EditEntryFailed EntryError
     | EditEntrySuccess Entry
 
-    -- remove entry alert/action (from add/entry modal)
+    -- remove entry alert/action (from add entry modal)
     | ShowRemoveEntryModal
     | DoRemoveEntry
     | DoneRemoveEntry
@@ -219,6 +224,18 @@ update msg model = case logMsg msg of
     ClearLoginDetails ->
         resetLoginState model ! []
 
+    -- set password modal:
+    SetPasswordFirst str ->
+        { model | setPasswordFirst = str } ! []
+    SetPasswordSecond str ->
+        { model | setPasswordSecond = str } ! []
+    DoSetPassword ->
+        { model | setPasswordSaving = True } ! [doSetPassword model]
+    SetPasswordSuccess ->
+        closeTopModal { model | setPasswordSaving = False, setPasswordFirst = "", setPasswordSecond = "" } ! []
+    SetPasswordFailed ->
+        closeTopModal { model | setPasswordSaving = False, setPasswordFirst = "", setPasswordSecond = "" } ! []
+
     -- add/edit user modal:
     ShowEditCurrentUserModal ->
         showModal editCurrentUserModal (prepareEditCurrentUser model) ! []
@@ -247,17 +264,16 @@ update msg model = case logMsg msg of
     EditUserFailed ->
         { model | userSaving = False, userError = True }  ! []
 
-    -- set password modal:
-    SetPasswordFirst str ->
-        { model | setPasswordFirst = str } ! []
-    SetPasswordSecond str ->
-        { model | setPasswordSecond = str } ! []
-    DoSetPassword ->
-        { model | setPasswordSaving = True } ! [doSetPassword model]
-    SetPasswordSuccess ->
-        closeTopModal { model | setPasswordSaving = False, setPasswordFirst = "", setPasswordSecond = "" } ! []
-    SetPasswordFailed ->
-        closeTopModal { model | setPasswordSaving = False, setPasswordFirst = "", setPasswordSecond = "" } ! []
+    -- remove user
+    ShowRemoveUserModal ->
+        showModal removeUserModal model ! []
+    DoRemoveUser ->
+      let
+        users' = Dict.filter (\name _ -> name /= model.userName) model.users
+      in
+        { model | users = users' } ! [doRemoveUser model]
+    DoneRemoveUser ->
+        model ! [ updateEverything ] -- make sure everything is uptodate.
 
     -- add/edit entry modals:
     ShowAddEntryModal ->
@@ -298,6 +314,7 @@ update msg model = case logMsg msg of
         { model | entries = entries' } ! [doRemoveEntry model]
     DoneRemoveEntry ->
         model ! [] -- Do nothing at the mo.
+
     CloseTopModal ->
         closeTopModal model ! []
 
@@ -458,6 +475,9 @@ doAddUser model =
     addUser = Users.add { name = model.userName, fullName = model.userFullName, userType = model.userType, pass = "" }
   in
     Task.perform (always EditUserFailed) EditUserSuccess addUser
+
+doRemoveUser : Model -> Cmd Msg
+doRemoveUser model = Task.perform (always DoneRemoveUser) (always DoneRemoveUser) (Users.remove model.userName)
 
 resetLoginState : Model -> Model
 resetLoginState model =
@@ -652,7 +672,7 @@ renderEntry model e =
     entryUser = case Dict.get e.user model.users of
         Nothing -> "an Unknown User"
         Just u -> u.fullName
-    entryHours = round (toFloat e.duration / 3600000)
+    entryHours = toFloat e.duration / 3600000
   in
     div [ class ("entry " ++ entryClass) ]
         [ div [ class "title" ]
@@ -788,6 +808,14 @@ logoutModal model =
   in
     choiceModal opts model
 
+addUserModal : Model -> ModalOptions Msg Model
+addUserModal model =
+    { defaultModalOptions
+    | title = text "Add User"
+    , isLoading = \model -> model.userSaving
+    , content = userModalHtml False model
+    }
+
 editUserModal : Model -> ModalOptions Msg Model
 editUserModal model =
     { defaultModalOptions
@@ -804,13 +832,18 @@ editCurrentUserModal model =
     , content = userModalHtml True model
     }
 
-addUserModal : Model -> ModalOptions Msg Model
-addUserModal model =
-    { defaultModalOptions
-    | title = text "Add User"
-    , isLoading = \model -> model.userSaving
-    , content = userModalHtml False model
-    }
+removeUserModal : Model -> ModalOptions Msg Model
+removeUserModal model =
+  let
+    opts =
+        { defaultWarningModalOptions
+        | title = "Remove User"
+        , message = "Are you sure you want to remove this user? This will also delete any Entries associated with them."
+        , onPerform = Just (All [CloseTopModal, DoRemoveUser]) -- close the "Edit user" modal we came from as well.
+        , performText = "Remove"
+        }
+  in
+    choiceModal opts model
 
 userModalHtml : Bool -> Model -> Html Msg
 userModalHtml isEditMode model =
@@ -883,9 +916,18 @@ userModalHtml isEditMode model =
                 , cs "add-user-button"
                 ]
                 [ text (if isMe then "Save" else if isEditMode then "Update User" else "Add User") ]
-            , model.userError ?
-                div [ class "error" ]
-                    [ text "Username taken" ]
+            , if model.userError
+                then div [ class "error" ] [ text "Username taken" ]
+                else div [ class "space-filler" ] []
+            , (isEditMode && not isMe) ?
+                div [ class "delete" ]
+                    [ Button.render Mdl [10,7] model.mdl
+                        [ Button.icon
+                        , Button.ripple
+                        , Button.onClick ShowRemoveUserModal
+                        ]
+                        [ Icon.i "delete"]
+                    ]
             ]
         ]
 
@@ -905,6 +947,19 @@ editEntryModal model =
     , content = entryModalHtml True model
     }
 
+removeEntryModal : Model -> ModalOptions Msg Model
+removeEntryModal model =
+  let
+    opts =
+        { defaultWarningModalOptions
+        | title = "Remove Entry"
+        , message = "Are you sure you want to remove this entry?"
+        , onPerform = Just (All [CloseTopModal, DoRemoveEntry]) -- close the "Edit entry" modal we came from as well.
+        , performText = "Remove"
+        }
+  in
+    choiceModal opts model
+
 entryModalHtml : Bool -> Model -> Html Msg
 entryModalHtml isEditMode model =
   let
@@ -914,13 +969,7 @@ entryModalHtml isEditMode model =
         Just EntryBadDuration -> "Entry duration required"
         _ -> "Something unsettling happened!"
     durationString =
-      let
-        hours = round (toFloat model.entryDuration / (60 * 60 * 1000))
-      in
-        if hours == 1 then "1 hour"
-        else if hours < 8 then toString hours ++ " hours"
-        else if hours == 8 then "1 day"
-        else toString (toFloat hours / 8) ++ " days"
+        toString (toFloat model.entryDuration / 3600000) ++ "h"
   in
     div [ class "entry-modal" ]
         [ table [ class "inputs" ]
@@ -961,6 +1010,9 @@ entryModalHtml isEditMode model =
                     , Menu.render Mdl [0] model.mdl
                         [ Menu.ripple, Menu.bottomRight ]
                         [ Menu.item
+                            [ Menu.onSelect (UpdateEntryDuration (1 * 1800000)) ]
+                            [ text "30 minutes" ]
+                        , Menu.item
                             [ Menu.onSelect (UpdateEntryDuration (1 * 3600000)) ]
                             [ text "1 hour" ]
                         , Menu.item
@@ -1021,19 +1073,6 @@ resetPasswordModal model =
         , message = "Are you sure you want to reset this users password?"
         , onPerform = Just DoResetPassword
         , performText = "Reset"
-        }
-  in
-    choiceModal opts model
-
-removeEntryModal : Model -> ModalOptions Msg Model
-removeEntryModal model =
-  let
-    opts =
-        { defaultWarningModalOptions
-        | title = "Remove Entry"
-        , message = "Are you sure you want to remove this entry?"
-        , onPerform = Just (All [CloseTopModal, DoRemoveEntry]) -- close the "Edit entry" modal we came from as well.
-        , performText = "Remove"
         }
   in
     choiceModal opts model
