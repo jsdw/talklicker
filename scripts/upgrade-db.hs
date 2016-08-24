@@ -57,11 +57,7 @@ main = do
     return ()
 
 getUpgraders :: Changes () -> [(Int, Value -> Value)]
-getUpgraders upgraders =
-  let
-    (_, upgradersMap) = State.execState upgraders (0, Map.empty)
-  in
-    Map.toAscList upgradersMap
+getUpgraders upgraders = Map.toAscList $ snd $ State.execState upgraders (0, Map.empty)
 
 infixl 0 ==>
 (==>) :: Int -> (Value -> Value) -> Changes ()
