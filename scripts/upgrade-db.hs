@@ -54,7 +54,6 @@ main = do
             else set (_Object . at "schemaVersion") (Just $ Number $ fromIntegral version) (fn json)
 
     Bytes.hPut stdout (encode finalJson)
-    return ()
 
 getUpgraders :: Changes () -> [(Int, Value -> Value)]
 getUpgraders upgraders = Map.toAscList $ snd $ State.execState upgraders (0, Map.empty)
