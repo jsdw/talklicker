@@ -22,13 +22,16 @@ import Data.Aeson.Lens
 --
 upgraders = do
 
-    0 =>> id
+    -- EXAMPLE: set "email" of each user to blank string and "subscribed" of each user to false
+    0 ==> set (key "users" . _Array . each . _Object . at "email") (Just $ String "")
+        . set (key "users" . _Array . each . _Object . at "subscribed") (Just $ Bool False)
 
-    1 =>> (\json -> json)
+    -- EXAMPLE: update "subscribed" of each user to true (key must exist to be updated)
+    1 ==> set (key "users" . _Array . each . key "subscribed") (Bool True)
 
-    2 =>> id
-
-    4 =>> id
+    -- EXAMPLE: rename "fullName" to "description" for each user (add description then remove fullName)
+    2 ==> set (key "users" . _Array . each . _Object . at "fullName") Nothing
+        . over (key "users" . _Array . each . _Object) (\u -> set (at "description") (preview (ix "fullName") u) u)
 
 --
 -- Load our upgraders, running those that are necessary given the version:
@@ -60,8 +63,9 @@ getUpgraders upgraders =
   in
     Map.toAscList upgradersMap
 
-(=>>) :: Int -> (Value -> Value) -> Changes ()
-(=>>) version fn = State.modify $ \(lastV, map) ->
+infixl 0 ==>
+(==>) :: Int -> (Value -> Value) -> Changes ()
+(==>) version fn = State.modify $ \(lastV, map) ->
     if version < lastV then error ("Versions specified out of order ("++show version++" after "++show lastV++")")
     else if Map.member version map then error ("Version "++show version++" listed more than once")
     else (version, Map.insert version (\json -> fn json) map)
