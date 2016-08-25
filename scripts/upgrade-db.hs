@@ -54,15 +54,11 @@ initialState = object
 --
 main = do
 
-    fileName <- getArgs >>= \a -> case a of
-        [] -> return ""
-        [f] -> return f
-        _ -> error "Exactly zero or one argument (json file to upgrade) expected"
-
-    (initialJson :: Value) <- case fileName of
-        ""  -> return initialState
-        "-" -> Bytes.hGetContents stdin >>= return . decodeToJson
-        _   -> Bytes.readFile fileName  >>= return . decodeToJson
+    initialJson <- getArgs >>= \a -> case a of
+        []     -> return initialState
+        ["-"]  -> Bytes.hGetContents stdin >>= return . decodeToJson
+        [file] -> Bytes.readFile file      >>= return . decodeToJson
+        _      -> error "Exactly zero or one argument (json file to upgrade) expected"
 
     let Just initialVersion = preview (key "schemaVersion" . _Integral) initialJson <|> Just (-1)
         finalJson = foldl' applyJson initialJson (getUpgraders upgraders)
