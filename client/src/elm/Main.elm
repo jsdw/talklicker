@@ -20,6 +20,9 @@ import Material.Toggles as Toggles
 import Material.Menu as Menu
 import Material.Tabs as Tabs
 
+import Modals exposing (choiceOptions)
+import Html.Helpers exposing (..)
+
 import Api
 import Api.Entries as Entries exposing (Entry, EntryType(..), EntryError(..))
 import Api.Users as Users exposing (User, UserType(..), LoginError(..))
@@ -419,11 +422,11 @@ prepareEditUser user model =
     , userSaving = False
     , userError = False}
 
-showModal : (Model -> ModalOptions Msg Model) -> Model -> Model
+showModal : (Model -> Modals.RenderOptions Msg Model) -> Model -> Model
 showModal modal model =
   let
     modalShower theModel = case theModel of
-        TheModel m -> renderModal m (modal m)
+        TheModel m -> Modals.render m (modal m)
   in
     { model | modals = model.modals ++ [modalShower] }
 
@@ -701,7 +704,7 @@ renderUser model user =
         , not user.hasPass ? div [ class "is-new" ] [ text "New" ]
         ]
 
-loginModal : Model -> ModalOptions Msg Model
+loginModal : Model -> Modals.RenderOptions Msg Model
 loginModal model =
   let
     invalid = model.loginUserName == ""
@@ -710,53 +713,54 @@ loginModal model =
         Just LoginBadPassword -> "Wrong password"
         _ -> "Something Untoward Transpired"
   in
-    { defaultModalOptions
-    | title = text "Login"
-    , onClose = Just ClearLoginDetails
+    { title = text "Login"
     , preventClose = \model -> model.loggingIn
+    , hideClose = always False
     , isLoading = \model -> model.loggingIn
+    , onClose = All [CloseTopModal, ClearLoginDetails]
     , content =
         div [ class "login-modal" ]
-            [ div [ class "inputs" ]
-                [ Textfield.render Mdl [70,0] model.mdl
-                    [ Textfield.label "Username"
-                    , Textfield.floatingLabel
-                    , Textfield.onInput LoginUserName
-                    , Textfield.value model.loginUserName
-                    ]
-                , Textfield.render Mdl [70,1] model.mdl
-                    [ Textfield.label "Password"
-                    , Textfield.floatingLabel
-                    , Textfield.password
-                    , Textfield.onInput LoginPassword
-                    , Textfield.value model.loginPassword
-                    ]
+        [ div [ class "inputs" ]
+            [ Textfield.render Mdl [70,0] model.mdl
+                [ Textfield.label "Username"
+                , Textfield.floatingLabel
+                , Textfield.onInput LoginUserName
+                , Textfield.value model.loginUserName
                 ]
-            , div [ class "bottom-row" ]
-                [ Button.render Mdl [0] model.mdl
-                    [ Button.raised
-                    , Button.colored
-                    , Button.disabled `when` invalid
-                    , Button.onClick DoLogin
-                    , cs "login-button"
-                    ]
-                    [ text "Login" ]
-                , model.loginError ??
-                    div [ class "error" ]
-                        [ text loginErrorString ]
+            , Textfield.render Mdl [70,1] model.mdl
+                [ Textfield.label "Password"
+                , Textfield.floatingLabel
+                , Textfield.password
+                , Textfield.onInput LoginPassword
+                , Textfield.value model.loginPassword
                 ]
             ]
+        , div [ class "bottom-row" ]
+            [ Button.render Mdl [0] model.mdl
+                [ Button.raised
+                , Button.colored
+                , Button.disabled `when` invalid
+                , Button.onClick DoLogin
+                , cs "login-button"
+                ]
+                [ text "Login" ]
+            , model.loginError ??
+                div [ class "error" ]
+                    [ text loginErrorString ]
+            ]
+        ]
     }
 
-setPasswordModal : Bool -> Model -> ModalOptions Msg Model
+setPasswordModal : Bool -> Model -> Modals.RenderOptions Msg Model
 setPasswordModal bNeedsSetting model =
   let
     invalid = model.setPasswordFirst /= model.setPasswordSecond || String.length model.setPasswordFirst == 0
   in
-    { defaultModalOptions
-    | title = text "Set Password"
+    { title = text "Set Password"
+    , preventClose = always False
     , isLoading = \model -> model.setPasswordSaving
     , hideClose = always bNeedsSetting
+    , onClose = CloseTopModal
     , content =
         div [ class "set-password-modal" ]
             [ bNeedsSetting ?
@@ -806,7 +810,7 @@ logoutModal model =
         , performText = "Log out"
         }
   in
-    choiceModal opts model
+    Modals.choice opts model
 
 addUserModal : Model -> ModalOptions Msg Model
 addUserModal model =
@@ -1078,131 +1082,6 @@ resetPasswordModal model =
     choiceModal opts model
 
 --
--- A more specific version of general modals aimed
--- at showing alerts/warnings/confirms:
---
-
-type alias ChoiceModalOptions msg =
-    { title : String
-    , icon : String
-    , message : String
-    , onCancel : Maybe msg
-    , onPerform : Maybe msg
-    , cancelText : String
-    , performText : String
-    , hidePerform : Bool
-    , hideCancel : Bool
-    }
-
-defaultWarningModalOptions : ChoiceModalOptions Msg
-defaultWarningModalOptions =
-    { title = "Warning"
-    , icon = "warning"
-    , message = "Are you sure you want to do this?"
-    , onCancel = Nothing
-    , cancelText = "Dismiss"
-    , hideCancel = False
-    , onPerform = Nothing
-    , performText = "Perform"
-    , hidePerform = False
-    }
-
-choiceModal : ChoiceModalOptions Msg -> Model -> ModalOptions Msg Model
-choiceModal opts model =
-  let
-    performMsg = All ([CloseTopModal] ++ case opts.onPerform of
-        Nothing -> []
-        Just msg -> [msg])
-    cancelMsg = All ([CloseTopModal] ++ case opts.onCancel of
-        Nothing -> []
-        Just msg -> [msg])
-  in
-    { defaultModalOptions
-    | title = text opts.title
-    , onClose = opts.onCancel
-    , content =
-        div [ class "choice-modal" ]
-            [ div [ class "content" ]
-                [ div [ class "icon" ]
-                    [ Icon.view opts.icon [ Icon.size48 ] ]
-                , div [ class "message" ]
-                    [ text opts.message ]
-                ]
-            , div [ class "buttons" ]
-                [ not opts.hideCancel ?
-                    Button.render Mdl [200,0] model.mdl
-                        [ Button.raised
-                        , Button.colored
-                        , Button.onClick cancelMsg
-                        , cs "cancel-button"
-                        ]
-                        [ text opts.cancelText ]
-                , not opts.hidePerform ?
-                    Button.render Mdl [200,1] model.mdl
-                        [ Button.raised
-                        , Button.colored
-                        , Button.onClick performMsg
-                        , cs "perform-button"
-                        ]
-                        [ text opts.performText ]
-                ]
-            ]
-    }
-
---
--- View - Modal maker
---
-
-renderModal : Model -> ModalOptions Msg Model -> Html Msg
-renderModal model {title,content,onClose,preventClose,hideClose,isLoading} =
-  let
-    closeMsgs = All ([CloseTopModal] ++ case onClose of
-        Nothing -> []
-        Just msg -> [msg])
-  in
-    div [ class "modal-background" ]
-        [ div [ class "modal-inner" ]
-            [ div [ class "title" ]
-                [ div [ class "title-inner" ] [ title ]
-                , not (hideClose model) ?
-                    Button.render Mdl [100,0] model.mdl
-                        [ Button.icon
-                        , Button.plain
-                        , Button.onClick closeMsgs
-                        , Button.disabled `when` preventClose model
-                        ]
-                        [ Icon.i "close" ]
-                , isLoading model ?
-                    div [ class "loading-overlay" ]
-                        [ Loading.indeterminate
-                        ]
-                ]
-            , div [ class "content" ]
-                [ content
-                ]
-            ]
-        ]
-
-type alias ModalOptions msg model =
-    { title : Html msg
-    , content : Html msg
-    , preventClose : model -> Bool
-    , hideClose : model -> Bool
-    , isLoading : model -> Bool
-    , onClose : Maybe msg
-    }
-
-defaultModalOptions : ModalOptions Msg Model
-defaultModalOptions =
-    { title = text ""
-    , content = div [] []
-    , preventClose = always False
-    , hideClose = always False
-    , isLoading = always False
-    , onClose = Nothing
-    }
-
---
 -- Main
 --
 
@@ -1232,27 +1111,3 @@ getEverything =
         { currentUser = curr, entries = entries, users = users }
   in
     Task.map3 fn Users.current Entries.get Users.get
-
---
--- Utils
---
-
-isJust : Maybe a -> Bool
-isJust m = case m of
-    Nothing -> False
-    Just _ -> True
-
-(?) : Bool -> Html a -> Html a
-(?) b html = if b then html else noNode
-
-(!?) : Bool -> Html a -> Html a
-(!?) b html = if b then noNode else html
-
-(??) : Maybe m -> Html a -> Html a
-(??) m html = if isJust m then html else noNode
-
-(!??) : Maybe m -> Html a -> Html a
-(!??) m html = if isJust m then noNode else html
-
-noNode : Html a
-noNode = Html.node "nothing" [ style [("position", "absolute"), ("display", "none")] ] []
