@@ -222,7 +222,9 @@ removeEntry :: UserSession -> Id -> Application ()
 removeEntry (Session _ sessUser) eId = do
     getEntryOr eId (throwError err404)
     modifyDb $ \e ->
-        let keepFn en = entryUser en /= userName sessUser || entryId en /= eId
+        let keepFn en = if userType sessUser == Admin
+                then entryId en /= eId
+                else entryUser en /= userName sessUser || entryId en /= eId
             newE = over allEntriesL (filter keepFn) e
         in (cleanupEverything newE, ())
 
