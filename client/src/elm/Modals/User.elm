@@ -1,10 +1,11 @@
-module Modals.User exposing (model, prepareForAdd, prepareForEdit, Model, Msg, Act(..), update, addModal, editModal, profileModal)
+module Modals.User exposing (model, prepareForAdd, prepareForEdit, prepareSetPass, Model, Msg(SetPasswordFirst, SetPasswordSecond), Act(..), update, addModal, editModal, profileModal, setPasswordModal)
 
---import Html.App
 --import Html.Events exposing (..)
+import Html.App
 import Html.Attributes exposing (..)
 import Html exposing (..)
 import Task
+import String
 
 import Material
 import Material.Options as Options exposing (when, css, cs)
@@ -29,12 +30,18 @@ type alias Model =
     , userSaving : Bool
     , userError : Bool
 
+    , setPasswordFirst : String
+    , setPasswordSecond : String
+    , setPasswordSaving : Bool
+
     -- current logged in user
     , currentUser : Maybe User
     -- is our remove submodal shown?
     , userRemoving : Bool
     -- is password reset submodal shown?
     , passwordResetting : Bool
+    -- is password set submodal shown?
+    , setPassword : Bool
 
     , mdl : Material.Model
     }
@@ -47,9 +54,14 @@ model =
     , userSaving = False
     , userError = False
 
+    , setPasswordFirst = ""
+    , setPasswordSecond = ""
+    , setPasswordSaving = False
+
     , currentUser = Nothing
     , userRemoving = False
     , passwordResetting = False
+    , setPassword = False
 
     , mdl = Material.model
     }
@@ -80,6 +92,15 @@ prepareForEdit currentUser user model =
     , currentUser = currentUser
     }
 
+prepareSetPass : User -> Model -> Model
+prepareSetPass user model =
+    { model
+    | userName = user.name
+    , setPasswordFirst = ""
+    , setPasswordSecond = ""
+    , setPasswordSaving = False
+    }
+
 --
 -- Update
 --
@@ -99,6 +120,13 @@ type Msg
     | AddUserSuccess User
     | EditUserFailed
 
+    -- set password modal
+    | SetPasswordFirst String
+    | SetPasswordSecond String
+    | DoSetPassword Bool
+    | SetPasswordSuccess Bool
+    | SetPasswordFailed
+
     -- remove a user (from add user modal)
     | ShowRemoveUserModal
     | DoRemoveUser
@@ -113,13 +141,13 @@ type Act
     = Added User
     | Updated User
     | Removed String --user ID
-    | ShowSetPasswordModal
+    | SetPasswordDone -- for externally launched version of the modal.
     | CloseMe
 
 update : Msg -> Model -> (Model, Maybe Act, Cmd Msg)
 update msg model = case msg of
     ShowSetPassword ->
-        (model, ShowSetPasswordModal) ^!! []
+        { model | setPassword = True } !! []
     ShowResetPassword ->
         { model | passwordResetting = True } !! []
     DoResetPassword ->
@@ -142,6 +170,20 @@ update msg model = case msg of
         ({ model | userSaving = False}, Added user) ^!! []
     EditUserFailed ->
         { model | userSaving = False, userError = True } !! []
+
+    -- set password modal:
+    SetPasswordFirst str ->
+        { model | setPasswordFirst = str } !! []
+    SetPasswordSecond str ->
+        { model | setPasswordSecond = str } !! []
+    DoSetPassword launchedExternally ->
+        { model | setPasswordSaving = True } !! [doSetPassword model launchedExternally]
+    SetPasswordSuccess launchedExternally ->
+        ( { model | setPassword = False, setPasswordSaving = False, setPasswordFirst = "", setPasswordSecond = "" }
+        , if launchedExternally then Just SetPasswordDone else Nothing
+        , Cmd.none )
+    SetPasswordFailed ->
+        { model | setPassword = False, setPasswordSaving = False, setPasswordFirst = "", setPasswordSecond = "" } !! []
 
     -- remove user
     ShowRemoveUserModal ->
@@ -172,6 +214,13 @@ doResetPassword username =
   in
     Task.perform (always DoneResetPassword) (always DoneResetPassword) resetPass
 
+doSetPassword : Model -> Bool -> Cmd Msg
+doSetPassword model launchedExternally =
+  let
+    setPass = Users.set model.userName { fullName = Nothing, userType = Nothing, pass = Just model.setPasswordFirst }
+  in
+    Debug.log (toString model) <| Task.perform (always SetPasswordFailed) (always (SetPasswordSuccess launchedExternally)) setPass
+
 doEditUser : Model -> Cmd Msg
 doEditUser model =
   let
@@ -190,7 +239,7 @@ doRemoveUser : Model -> Cmd Msg
 doRemoveUser model = Task.perform (always DoneRemoveUser) (always DoneRemoveUser) (Users.remove model.userName)
 
 --
--- View
+-- Views (external interfaces)
 --
 
 addModal : (parentModel -> Model) -> (Msg -> parentMsg) -> (parentModel -> Html parentMsg)
@@ -229,13 +278,22 @@ profileModal = Modals.renderWith (\model ->
     , content = userModalHtml True model
     })
 
+setPasswordModal: (parentModel -> Model) -> (Msg -> parentMsg) -> (parentModel -> Html parentMsg)
+setPasswordModal fromParentModel toParentMsg =
+    \model -> setPasswordModal' True (fromParentModel model) |> Html.App.map toParentMsg
+
 showSubModals : Model -> List (Html Msg)
 showSubModals model =
   let
-    resetModal = if model.passwordResetting then [ resetPasswordModal model ] else []
+    resetPassModal = if model.passwordResetting then [ resetPasswordModal model ] else []
     removeModal = if model.userRemoving then [ removeUserModal model ] else []
+    setPassModal = if model.setPassword then [ setPasswordModal' False model ] else []
   in
-    resetModal ++ removeModal
+    resetPassModal ++ removeModal ++ setPassModal
+
+--
+-- Internal-only views:
+--
 
 removeUserModal : Model -> Html Msg
 removeUserModal model =
@@ -358,3 +416,54 @@ resetPasswordModal model =
         }
   in
     Modals.choice opts model
+
+setPasswordModal' : Bool -> Model -> Html Msg
+setPasswordModal' launchedExternally model =
+  let
+    invalid = model.setPasswordFirst /= model.setPasswordSecond || String.length model.setPasswordFirst == 0
+    opts =
+        { title = text "Set Password"
+        , preventClose = False
+        , isLoading = model.setPasswordSaving
+        , hideClose = launchedExternally
+        , onClose = SetPasswordFailed
+        , mdl = Mdl
+        , cover = []
+        , content =
+            div [ class "set-password-modal" ]
+                [ launchedExternally ?
+                    div [ class "needs-setting-text" ]
+                        [ text "You have not yet set a password. Please do so now." ]
+                , div [ class "inputs" ]
+                    [ Textfield.render Mdl [71,1] model.mdl
+                        [ Textfield.label "New Password"
+                        , Textfield.floatingLabel
+                        , Textfield.password
+                        , Textfield.onInput SetPasswordFirst
+                        , Textfield.value model.setPasswordFirst
+                        ]
+                    , Textfield.render Mdl [71,2] model.mdl
+                        [ Textfield.label "New Password Again"
+                        , Textfield.floatingLabel
+                        , Textfield.password
+                        , Textfield.onInput SetPasswordSecond
+                        , Textfield.value model.setPasswordSecond
+                        ]
+                    ]
+                , div [ class "bottom-row" ]
+                    [ Button.render Mdl [71,3] model.mdl
+                        [ Button.raised
+                        , Button.colored
+                        , Button.disabled `when` invalid
+                        , Button.onClick (DoSetPassword launchedExternally)
+                        , cs "set-password-button"
+                        ]
+                        [ text "Set Password" ]
+                    , (invalid && model.setPasswordSecond /= "") ?
+                        div [ class "error" ]
+                            [ text "Passwords do not match" ]
+                    ]
+                ]
+        }
+  in
+    Modals.render opts model

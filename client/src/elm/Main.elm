@@ -50,11 +50,6 @@ initialModel =
     , loggingIn = False
     , loginError = Nothing
 
-    -- set password modal:
-    , setPasswordFirst = ""
-    , setPasswordSecond = ""
-    , setPasswordSaving = False
-
     -- add/edit user modal:
     , userModal = UserModal.model
 
@@ -79,11 +74,6 @@ type alias Model =
     , loginPassword : String
     , loggingIn : Bool
     , loginError : Maybe LoginError
-
-    -- set password modal:
-    , setPasswordFirst : String
-    , setPasswordSecond : String
-    , setPasswordSaving : Bool
 
     -- add/edit user modal:
     , userModal : UserModal.Model
@@ -121,19 +111,11 @@ type Msg
     | LoginSuccess User
     | ClearLoginDetails
 
-    -- set password modal:
-    | SetPasswordFirst String
-    | SetPasswordSecond String
-    | DoSetPassword
-    | SetPasswordSuccess
-    | SetPasswordFailed
-
     -- add/edit user modal:
     | ShowEditCurrentUserModal
     | ShowAddUserModal
     | ShowEditUserModal User
     | UserModal UserModal.Msg
-    | ShowSetPasswordModal
 
     -- add/edit/remove entry modal:
     | ShowAddEntryModal
@@ -180,34 +162,20 @@ update msg model = case logMsg msg of
     ClearLoginDetails ->
         resetLoginState model ! []
 
-    -- set password modal:
-    SetPasswordFirst str ->
-        { model | setPasswordFirst = str } ! []
-    SetPasswordSecond str ->
-        { model | setPasswordSecond = str } ! []
-    DoSetPassword ->
-        { model | setPasswordSaving = True } ! [doSetPassword model]
-    SetPasswordSuccess ->
-        closeTopModal { model | setPasswordSaving = False, setPasswordFirst = "", setPasswordSecond = "" } ! []
-    SetPasswordFailed ->
-        closeTopModal { model | setPasswordSaving = False, setPasswordFirst = "", setPasswordSecond = "" } ! []
-
     -- add/edit user modal:
     ShowEditCurrentUserModal ->
         case model.user of
             Nothing -> model ! []
             Just u ->
               showModal
-                (UserModal.profileModal .userModal UserModal)
-                { model | userModal = UserModal.prepareForEdit model.user u model.userModal } ! []
+              (UserModal.profileModal .userModal UserModal)
+              { model | userModal = UserModal.prepareForEdit model.user u model.userModal } ! []
     ShowEditUserModal user ->
         showModal (UserModal.editModal .userModal UserModal) { model | userModal = UserModal.prepareForEdit model.user user model.userModal } ! []
     ShowAddUserModal ->
         showModal (UserModal.addModal .userModal UserModal) { model | userModal = UserModal.prepareForAdd model.user model.userModal }  ! []
     UserModal msg ->
         handleUserUpdate msg model
-    ShowSetPasswordModal ->
-        showModal (setPasswordModal False) { model | setPasswordFirst = "", setPasswordSecond = "" } ! []
 
     -- add/edit entry modals:
     ShowAddEntryModal ->
@@ -258,8 +226,8 @@ handleUserUpdate msg model =
             closeTopModal { model | users = Dict.remove userId model.users } ! [updateEverything]
         Just UserModal.CloseMe ->
             closeTopModal model ! []
-        Just UserModal.ShowSetPasswordModal ->
-            showModal (setPasswordModal False) { model | setPasswordFirst = "", setPasswordSecond = "" } ! []
+        Just UserModal.SetPasswordDone ->
+            closeTopModal model ! []
         Nothing ->
             model ! []
   in
@@ -291,18 +259,22 @@ logMsg msg =
     pwLog pw = String.map (\_ -> '*') pw
     doLog = case msg of
       LoginPassword p -> log (LoginPassword <| pwLog p)
-      SetPasswordFirst p -> log (SetPasswordFirst <| pwLog p)
-      SetPasswordSecond p -> log (SetPasswordSecond <| pwLog p)
+      UserModal (UserModal.SetPasswordFirst p) -> log (UserModal <| UserModal.SetPasswordFirst <| pwLog p)
+      UserModal (UserModal.SetPasswordSecond p) -> log (UserModal <| UserModal.SetPasswordSecond <| pwLog p)
       a -> log a
   in
     msg
 
 -- if the user doesn't have a password set, this shows the set password modal:
 showSetPasswordIfNeeded : Model -> Model
-showSetPasswordIfNeeded model =
-    if Maybe.map .hasPass model.user == Just False
-        then showModal (setPasswordModal True) model
+showSetPasswordIfNeeded model = case model.user of
+    Just u ->
+        if u.hasPass == False
+        then showModal
+             (UserModal.setPasswordModal .userModal UserModal)
+             { model | userModal = UserModal.prepareSetPass u model.userModal }
         else model
+    Nothing -> model
 
 showModal : (Model -> Html Msg) -> Model -> Model
 showModal modalFn model =
@@ -330,15 +302,6 @@ doLogin model =
     login = Users.login model.loginUserName model.loginPassword
   in
     Task.perform LoginFailed LoginSuccess login
-
-doSetPassword : Model -> Cmd Msg
-doSetPassword model =
-  let
-    setPass u = Users.set u.name { fullName = Nothing, userType = Nothing, pass = Just model.setPasswordFirst }
-  in
-    case model.user of
-        Nothing -> Cmd.none
-        Just u -> Task.perform (always SetPasswordFailed) (always SetPasswordSuccess) (setPass u)
 
 resetLoginState : Model -> Model
 resetLoginState model =
@@ -568,57 +531,6 @@ loginModal model =
                         [ text loginErrorString ]
                 ]
             ]
-        }
-  in
-    Modals.render opts model
-
-setPasswordModal : Bool -> Model -> Html Msg
-setPasswordModal bNeedsSetting model =
-  let
-    invalid = model.setPasswordFirst /= model.setPasswordSecond || String.length model.setPasswordFirst == 0
-    opts =
-        { title = text "Set Password"
-        , preventClose = False
-        , isLoading = model.setPasswordSaving
-        , hideClose = bNeedsSetting
-        , onClose = CloseTopModal
-        , mdl = Mdl
-        , cover = []
-        , content =
-            div [ class "set-password-modal" ]
-                [ bNeedsSetting ?
-                    div [ class "needs-setting-text" ]
-                        [ text "You have not yet set a password. Please do so now." ]
-                , div [ class "inputs" ]
-                    [ Textfield.render Mdl [71,1] model.mdl
-                        [ Textfield.label "New Password"
-                        , Textfield.floatingLabel
-                        , Textfield.password
-                        , Textfield.onInput SetPasswordFirst
-                        , Textfield.value model.setPasswordFirst
-                        ]
-                    , Textfield.render Mdl [71,2] model.mdl
-                        [ Textfield.label "New Password Again"
-                        , Textfield.floatingLabel
-                        , Textfield.password
-                        , Textfield.onInput SetPasswordSecond
-                        , Textfield.value model.setPasswordSecond
-                        ]
-                    ]
-                , div [ class "bottom-row" ]
-                    [ Button.render Mdl [71,3] model.mdl
-                        [ Button.raised
-                        , Button.colored
-                        , Button.disabled `when` invalid
-                        , Button.onClick DoSetPassword
-                        , cs "set-password-button"
-                        ]
-                        [ text "Set Password" ]
-                    , (invalid && model.setPasswordSecond /= "") ?
-                        div [ class "error" ]
-                            [ text "Passwords do not match" ]
-                    ]
-                ]
         }
   in
     Modals.render opts model
