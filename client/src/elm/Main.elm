@@ -33,8 +33,8 @@ import Api.Users as Users exposing (User, UserType(..), LoginError(..))
 -- Model
 --
 
-model : Model
-model =
+initialModel : Model
+initialModel =
     { loading = True
 
     , tab = EntriesTab
@@ -204,10 +204,8 @@ update msg model = case logMsg msg of
         showModal (UserModal.editModal .userModal UserModal) { model | userModal = UserModal.prepareForEdit model.user user model.userModal } ! []
     ShowAddUserModal ->
         showModal (UserModal.addModal .userModal UserModal) { model | userModal = UserModal.prepareForAdd model.user model.userModal }  ! []
-
-    -- handle user modal updates:
     UserModal msg ->
-        handleUserUpdate msg
+        handleUserUpdate msg model
     ShowSetPasswordModal ->
         showModal (setPasswordModal False) { model | setPasswordFirst = "", setPasswordSecond = "" } ! []
 
@@ -218,10 +216,9 @@ update msg model = case logMsg msg of
             Just u -> showModal (EntryModal.addModal .entryModal EntryModal) { model | entryModal = EntryModal.prepareForAdd u model.entryModal } ! []
     ShowEditEntryModal entry ->
         showModal (EntryModal.editModal .entryModal EntryModal) { model | entryModal = EntryModal.prepareForEdit entry model.entryModal } ! []
-
-    -- handle entry modal updates:
     EntryModal msg ->
-        handleEntryUpdate msg
+        handleEntryUpdate msg model
+
     CloseTopModal ->
         closeTopModal model ! []
 
@@ -244,15 +241,19 @@ update msg model = case logMsg msg of
         (model, Cmd.none)
 
 -- handle updates to the userModal
-handleUserUpdate : UserModal.Msg -> (Model, Cmd Msg)
-handleUserUpdate msg =
+handleUserUpdate : UserModal.Msg -> Model -> (Model, Cmd Msg)
+handleUserUpdate msg model =
   let
     (userModal', act, cmd) = UserModal.update msg model.userModal
     (actedModel, aCmd) = case act of
         Just (UserModal.Added user) ->
             closeTopModal { model | users = Dict.insert user.name user model.users } ! []
         Just (UserModal.Updated user) ->
-            closeTopModal { model | users = Dict.insert user.name user model.users } ! []
+            closeTopModal
+                { model
+                | users = Dict.insert user.name user model.users
+                , user = if Maybe.map .name model.user == Just user.name then Just user else model.user
+                } ! []
         Just (UserModal.Removed userId) ->
             closeTopModal { model | users = Dict.remove userId model.users } ! [updateEverything]
         Just UserModal.CloseMe ->
@@ -264,8 +265,8 @@ handleUserUpdate msg =
   in
     { actedModel | userModal = userModal' } ! [ aCmd, Cmd.map UserModal cmd ]
 
-handleEntryUpdate : EntryModal.Msg -> (Model, Cmd Msg)
-handleEntryUpdate msg =
+handleEntryUpdate : EntryModal.Msg -> Model -> (Model, Cmd Msg)
+handleEntryUpdate msg model =
   let
     (entryModal', act, cmd) = EntryModal.update msg model.entryModal
     actedModel = case act of
@@ -347,19 +348,6 @@ resetLoginState model =
     , loginError = Nothing
     , loggingIn = False
     }
-
-updateModelWithUser : User -> Model -> Model
-updateModelWithUser user model =
-  let
-    updateCurrUser m = case m.user of
-        Nothing -> m
-        Just u -> { m | user = if u.name == user.name then Just user else Just u }
-    updateUserList m =
-        { m | users = Dict.map (\_ u -> if u.name == user.name then user else u) m.users }
-    appendToUserList m =
-        { m | users = if Dict.member user.name m.users then m.users else Dict.insert user.name user m.users }
-  in
-    model |> updateCurrUser |> updateUserList |> appendToUserList
 
 --
 -- View
@@ -668,7 +656,7 @@ main =
     }
 
 init : (Model, Cmd Msg)
-init = (model, updateEverything)
+init = (initialModel, updateEverything)
 
 type alias CoreDetails =
     { currentUser : Maybe User, entries : List Entry, users : Dict String User }
