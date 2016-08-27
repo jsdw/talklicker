@@ -63,7 +63,6 @@ model =
 
     -- entry stuff for add/edit:
     , entryModal = EntryModal.model
-    , entryToRemove = ""
 
     , mdl = Material.model
     }
@@ -98,7 +97,6 @@ type alias Model =
 
     -- entry stuff for add/edit:
     , entryModal : EntryModal.Model
-    , entryToRemove : String
 
     , mdl : Material.Model
 
@@ -157,14 +155,10 @@ type Msg
     | DoRemoveUser
     | DoneRemoveUser
 
-    -- add/edit entry modal:
+    -- add/edit/remove entry modal:
     | ShowAddEntryModal
     | ShowEditEntryModal Entry
     | EntryModal EntryModal.Msg
-
-    -- remove entry alert/action (from add entry modal)
-    | DoRemoveEntry String
-    | DoneRemoveEntry
 
     -- perform several actions at once
     | All (List Msg)
@@ -274,22 +268,15 @@ update msg model = case logMsg msg of
                 closeTopModal { model | entries = model.entries ++ [entry] }
             Just (EntryModal.Updated entry) ->
                 closeTopModal { model | entries = List.map (\e -> if e.id == entry.id then entry else e) model.entries }
-            Just (EntryModal.Remove entryId) ->
-                showModal removeEntryModal { model | entryToRemove = entryId }
+            Just (EntryModal.Removed entryId) ->
+                closeTopModal <| closeTopModal <| { model | entries = List.filter (\e -> e.id /= entryId) model.entries }
+            Just EntryModal.ShowRemoveEntryModal ->
+                showModal (EntryModal.removeModal .entryModal EntryModal) model
             Just EntryModal.CloseMe ->
                 closeTopModal model
             _ -> model
       in
         { actedModel | entryModal = entryModal' } ! [Cmd.map EntryModal cmd]
-
-    -- remove an entry
-    DoRemoveEntry id ->
-      let
-        entries' = List.filter (\e -> e.id /= id) model.entries
-      in
-        { model | entries = entries' } ! [doRemoveEntry id]
-    DoneRemoveEntry ->
-        model ! [] -- Do nothing at the mo.
 
     CloseTopModal ->
         closeTopModal model ! []
@@ -447,10 +434,6 @@ updateModelWithUser user model =
         { m | users = if Dict.member user.name m.users then m.users else Dict.insert user.name user m.users }
   in
     model |> updateCurrUser |> updateUserList |> appendToUserList
-
-doRemoveEntry : String -> Cmd Msg
-doRemoveEntry entryId =
-  Task.perform ApiError (\_ -> DoneRemoveEntry) (Entries.remove entryId)
 
 --
 -- View
@@ -890,24 +873,6 @@ userModalHtml isEditMode model =
                     ]
             ]
         ]
-
-removeEntryModal : Model -> Html Msg
-removeEntryModal model =
-  let
-    opts =
-        { title = "Remove Entry"
-        , icon = "warning"
-        , message = "Are you sure you want to remove this entry?"
-        , onPerform = All [CloseTopModal, CloseTopModal, DoRemoveEntry model.entryToRemove] -- close the "Edit entry" modal we came from as well.
-        , performText = "Remove"
-        , onCancel = CloseTopModal
-        , cancelText = "Cancel"
-        , hidePerform = False
-        , hideCancel = False
-        , mdl = Mdl
-        }
-  in
-    Modals.choice opts model
 
 resetPasswordModal : Model -> Html Msg
 resetPasswordModal model =

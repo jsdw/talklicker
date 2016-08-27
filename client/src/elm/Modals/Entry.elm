@@ -1,4 +1,4 @@
-module Modals.Entry exposing (model, prepareForAdd, prepareForEdit, Model, Msg, Act(..), update, addModal, editModal)
+module Modals.Entry exposing (model, prepareForAdd, prepareForEdit, Model, Msg, Act(..), update, addModal, editModal, removeModal)
 
 import Html.App
 --import Html.Events exposing (..)
@@ -16,6 +16,7 @@ import Material.Menu as Menu
 
 import Modals
 
+import Api exposing (Error(..))
 import Api.Entries as Entries exposing (Entry, EntryType(..), EntryError(..))
 import Api.Users as Users exposing (User, UserType(..), LoginError(..))
 import Html.Helpers exposing (..)
@@ -80,7 +81,7 @@ prepareForEdit entry model =
 
 -- messages we handle internally
 type Msg
-    = ShowRemoveEntryModal
+    = RemoveModal
     | UpdateEntryName String
     | UpdateEntryDescription String
     | UpdateEntryType EntryType
@@ -93,19 +94,23 @@ type Msg
     | EditEntrySuccess Entry
     | Close
 
+    | DoRemoveEntry
+    | DoneRemoveEntry
+
     | Mdl (Material.Msg Msg)
 
 -- messages we pass back to the guy above us.
 type Act
     = Added Entry
     | Updated Entry
-    | Remove String --entry ID
+    | Removed String --entry ID
+    | ShowRemoveEntryModal
     | CloseMe
 
 update : Msg -> Model -> (Model, Maybe Act, Cmd Msg)
 update msg model = case msg of
-    ShowRemoveEntryModal ->
-        (model, Remove model.entryId) ^!! []
+    RemoveModal ->
+        (model, ShowRemoveEntryModal) ^!! []
     UpdateEntryName val ->
         { model | entryName = val } !! []
     UpdateEntryDescription val ->
@@ -128,6 +133,10 @@ update msg model = case msg of
         { model | entrySaving = False, entryError = Just err } !! []
     Close ->
         (model, CloseMe) ^!! []
+    DoRemoveEntry ->
+        (model, Removed model.entryId) ^!! [doRemoveEntry model.entryId]
+    DoneRemoveEntry ->
+        model !! [] -- do nothing at the mo.
     Mdl msg' ->
         let (model,cmd) = Material.update msg' model
         in (model, Nothing, cmd)
@@ -151,6 +160,10 @@ doEditEntry model =
     entry = entryishFromModel model
   in
     Task.perform EditEntryFailed EditEntrySuccess (Entries.set entry)
+
+doRemoveEntry : String -> Cmd Msg
+doRemoveEntry entryId =
+  Task.perform (always DoneRemoveEntry) (always DoneRemoveEntry) (Entries.remove entryId)
 
 entryishFromModel : Model -> Entries.EntrySettable {}
 entryishFromModel model =
@@ -187,6 +200,24 @@ editModal = Modals.renderWith (\model ->
     , mdl = Mdl
     , content = entryModalHtml True model
     })
+
+removeModal : (parentModel -> Model) -> (Msg -> parentMsg) -> (parentModel -> Html parentMsg)
+removeModal =
+  let
+    opts =
+        { title = "Remove Entry"
+        , icon = "warning"
+        , message = "Are you sure you want to remove this entry?"
+        , onPerform = DoRemoveEntry
+        , performText = "Remove"
+        , onCancel = Close
+        , cancelText = "Cancel"
+        , hidePerform = False
+        , hideCancel = False
+        , mdl = Mdl
+        }
+  in
+    Modals.renderWith (Modals.choiceToRenderOptions opts)
 
 entryModalHtml : Bool -> Model -> Html Msg
 entryModalHtml isEditMode model =
@@ -275,7 +306,7 @@ entryModalHtml isEditMode model =
                     [ Button.render Mdl [6] model.mdl
                         [ Button.icon
                         , Button.ripple
-                        , Button.onClick ShowRemoveEntryModal
+                        , Button.onClick RemoveModal
                         ]
                         [ Icon.i "delete"]
                     ]

@@ -1,4 +1,4 @@
-module Modals exposing (renderWith, render, RenderOptions, choice, ChoiceOptions)
+module Modals exposing (renderWith, render, RenderOptions, choice, ChoiceOptions, choiceToRenderOptions)
 
 import Html.App
 import Html.Attributes exposing (..)
@@ -93,43 +93,42 @@ type alias ChoiceOptions msg =
     , mdl : Material.Msg msg -> msg
     }
 
-choice : ChoiceOptions msg -> WithMdl a -> Html msg
-choice opts model =
-  let
-    renderOpts =
-        { title = text opts.title
-        , preventClose = False
-        , onClose = opts.onCancel
-        , hideClose = False
-        , isLoading = False
-        , mdl = opts.mdl
-        , content =
-            div [ class "choice-modal" ]
-                [ div [ class "content" ]
-                    [ div [ class "icon" ]
-                        [ Icon.view opts.icon [ Icon.size48 ] ]
-                    , div [ class "message" ]
-                        [ text opts.message ]
-                    ]
-                , div [ class "buttons" ]
-                    [ not opts.hideCancel ?
-                        Button.render opts.mdl [200,0] model.mdl
-                            [ Button.raised
-                            , Button.colored
-                            , Button.onClick opts.onCancel
-                            , cs "cancel-button"
-                            ]
-                            [ text opts.cancelText ]
-                    , not opts.hidePerform ?
-                        Button.render opts.mdl [200,1] model.mdl
-                            [ Button.raised
-                            , Button.colored
-                            , Button.onClick opts.onPerform
-                            , cs "perform-button"
-                            ]
-                            [ text opts.performText ]
-                    ]
+choiceToRenderOptions : ChoiceOptions msg -> WithMdl a -> RenderOptions msg
+choiceToRenderOptions opts model =
+    { title = text opts.title
+    , preventClose = False
+    , onClose = opts.onCancel
+    , hideClose = False
+    , isLoading = False
+    , mdl = opts.mdl
+    , content =
+        div [ class "choice-modal" ]
+            [ div [ class "content" ]
+                [ div [ class "icon" ]
+                    [ Icon.view opts.icon [ Icon.size48 ] ]
+                , div [ class "message" ]
+                    [ text opts.message ]
                 ]
-        }
-  in
-    render renderOpts model
+            , div [ class "buttons" ]
+                [ not opts.hideCancel ?
+                    Button.render opts.mdl [200,0] model.mdl
+                        [ Button.raised
+                        , Button.colored
+                        , Button.onClick opts.onCancel
+                        , cs "cancel-button"
+                        ]
+                        [ text opts.cancelText ]
+                , not opts.hidePerform ?
+                    Button.render opts.mdl [200,1] model.mdl
+                        [ Button.raised
+                        , Button.colored
+                        , Button.onClick opts.onPerform
+                        , cs "perform-button"
+                        ]
+                        [ text opts.performText ]
+                ]
+            ]
+    }
+
+choice : ChoiceOptions msg -> WithMdl a -> Html msg
+choice opts model = render (choiceToRenderOptions opts model) model
