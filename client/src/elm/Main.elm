@@ -269,12 +269,11 @@ update msg model = case logMsg msg of
             Just (EntryModal.Updated entry) ->
                 closeTopModal { model | entries = List.map (\e -> if e.id == entry.id then entry else e) model.entries }
             Just (EntryModal.Removed entryId) ->
-                closeTopModal <| closeTopModal <| { model | entries = List.filter (\e -> e.id /= entryId) model.entries }
-            Just EntryModal.ShowRemoveEntryModal ->
-                showModal (EntryModal.removeModal .entryModal EntryModal) model
+                closeTopModal { model | entries = List.filter (\e -> e.id /= entryId) model.entries }
             Just EntryModal.CloseMe ->
                 closeTopModal model
-            _ -> model
+            Nothing ->
+                model
       in
         { actedModel | entryModal = entryModal' } ! [Cmd.map EntryModal cmd]
 
@@ -622,6 +621,7 @@ loginModal model =
         , isLoading = model.loggingIn
         , onClose = All [CloseTopModal, ClearLoginDetails]
         , mdl = Mdl
+        , cover = []
         , content =
             div [ class "login-modal" ]
             [ div [ class "inputs" ]
@@ -668,6 +668,7 @@ setPasswordModal bNeedsSetting model =
         , hideClose = bNeedsSetting
         , onClose = CloseTopModal
         , mdl = Mdl
+        , cover = []
         , content =
             div [ class "set-password-modal" ]
                 [ bNeedsSetting ?
@@ -735,6 +736,7 @@ addUserModal model =
         , hideClose = False
         , onClose = CloseTopModal
         , mdl = Mdl
+        , cover = []
         , content = userModalHtml False model
         }
   in
@@ -750,6 +752,7 @@ editUserModal model =
         , hideClose = False
         , onClose = CloseTopModal
         , mdl = Mdl
+        , cover = []
         , content = userModalHtml True model
         }
   in
@@ -765,6 +768,7 @@ editCurrentUserModal model =
         , hideClose = False
         , onClose = CloseTopModal
         , mdl = Mdl
+        , cover = []
         , content = userModalHtml True model
         }
   in

@@ -1,6 +1,6 @@
-module Modals.Entry exposing (model, prepareForAdd, prepareForEdit, Model, Msg, Act(..), update, addModal, editModal, removeModal)
+module Modals.Entry exposing (model, prepareForAdd, prepareForEdit, Model, Msg, Act(..), update, addModal, editModal)
 
-import Html.App
+--import Html.App
 --import Html.Events exposing (..)
 import Html.Attributes exposing (..)
 import Html exposing (..)
@@ -16,7 +16,6 @@ import Material.Menu as Menu
 
 import Modals
 
-import Api exposing (Error(..))
 import Api.Entries as Entries exposing (Entry, EntryType(..), EntryError(..))
 import Api.Users as Users exposing (User, UserType(..), LoginError(..))
 import Html.Helpers exposing (..)
@@ -35,6 +34,9 @@ type alias Model =
     , entrySaving : Bool
     , entryError : Maybe EntryError
 
+    -- is our remove submodal shown?
+    , entryRemoving : Bool
+
     , mdl : Material.Model
     }
 
@@ -49,6 +51,8 @@ model =
     , entrySaving = False
     , entryError = Nothing
 
+    , entryRemoving = False
+
     , mdl = Material.model
     }
 
@@ -61,6 +65,7 @@ prepareForAdd user model =
     , entryDescription = ""
     , entryType = Talk
     , entryError = Nothing
+    , entryRemoving = False
     }
 
 prepareForEdit : Entry -> Model -> Model
@@ -73,6 +78,7 @@ prepareForEdit entry model =
     , entryDescription = entry.description
     , entryType = entry.entryType
     , entryError = Nothing
+    , entryRemoving = False
     }
 
 --
@@ -95,6 +101,7 @@ type Msg
     | Close
 
     | DoRemoveEntry
+    | CloseRemoveEntry
     | DoneRemoveEntry
 
     | Mdl (Material.Msg Msg)
@@ -104,13 +111,12 @@ type Act
     = Added Entry
     | Updated Entry
     | Removed String --entry ID
-    | ShowRemoveEntryModal
     | CloseMe
 
 update : Msg -> Model -> (Model, Maybe Act, Cmd Msg)
 update msg model = case msg of
     RemoveModal ->
-        (model, ShowRemoveEntryModal) ^!! []
+        { model | entryRemoving = True } !! []
     UpdateEntryName val ->
         { model | entryName = val } !! []
     UpdateEntryDescription val ->
@@ -131,6 +137,8 @@ update msg model = case msg of
         ({ model | entrySaving = False }, Updated entry) ^!! []
     EditEntryFailed err ->
         { model | entrySaving = False, entryError = Just err } !! []
+    CloseRemoveEntry ->
+        { model | entryRemoving = False } !! []
     Close ->
         (model, CloseMe) ^!! []
     DoRemoveEntry ->
@@ -187,6 +195,7 @@ addModal = Modals.renderWith (\model ->
     , hideClose = False
     , onClose = Close
     , mdl = Mdl
+    , cover = []
     , content = entryModalHtml False model
     })
 
@@ -198,11 +207,12 @@ editModal = Modals.renderWith (\model ->
     , hideClose = False
     , onClose = Close
     , mdl = Mdl
+    , cover = if model.entryRemoving then [ removeModal model ] else []
     , content = entryModalHtml True model
     })
 
-removeModal : (parentModel -> Model) -> (Msg -> parentMsg) -> (parentModel -> Html parentMsg)
-removeModal =
+removeModal : Model -> Html Msg
+removeModal model =
   let
     opts =
         { title = "Remove Entry"
@@ -210,14 +220,14 @@ removeModal =
         , message = "Are you sure you want to remove this entry?"
         , onPerform = DoRemoveEntry
         , performText = "Remove"
-        , onCancel = Close
+        , onCancel = CloseRemoveEntry
         , cancelText = "Cancel"
         , hidePerform = False
         , hideCancel = False
         , mdl = Mdl
         }
   in
-    Modals.renderWith (Modals.choiceToRenderOptions opts)
+    Modals.choice opts model
 
 entryModalHtml : Bool -> Model -> Html Msg
 entryModalHtml isEditMode model =

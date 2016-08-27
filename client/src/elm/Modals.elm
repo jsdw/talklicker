@@ -41,9 +41,9 @@ type alias WithMdl model = { model | mdl: Material.Model }
 --
 
 render : RenderOptions msg -> WithMdl a -> Html msg
-render {title,content,onClose,preventClose,hideClose,isLoading,mdl} model =
+render {title,content,onClose,preventClose,hideClose,isLoading,mdl,cover} model =
     div [ class "modal-background" ]
-        [ div [ class "modal-inner" ]
+        ([ div [ class "modal-inner" ]
             [ div [ class "title" ]
                 [ div [ class "title-inner" ] [ title ]
                 , not hideClose ?
@@ -63,7 +63,7 @@ render {title,content,onClose,preventClose,hideClose,isLoading,mdl} model =
                 [ content
                 ]
             ]
-        ]
+        ] ++ cover)
 
 type alias RenderOptions msg =
     { title : Html msg
@@ -72,6 +72,7 @@ type alias RenderOptions msg =
     , hideClose : Bool
     , isLoading : Bool
     , onClose : msg
+    , cover : List (Html msg)
     , mdl : Material.Msg msg -> msg
     }
 
@@ -128,6 +129,7 @@ choiceToRenderOptions opts model =
                         [ text opts.performText ]
                 ]
             ]
+    , cover = []
     }
 
 choice : ChoiceOptions msg -> WithMdl a -> Html msg
