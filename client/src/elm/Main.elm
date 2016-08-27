@@ -20,7 +20,7 @@ import Material.Toggles as Toggles
 import Material.Menu as Menu
 import Material.Tabs as Tabs
 
-import Modals exposing (choiceOptions)
+import Modals
 import Html.Helpers exposing (..)
 
 import Api
@@ -422,11 +422,11 @@ prepareEditUser user model =
     , userSaving = False
     , userError = False}
 
-showModal : (Model -> Modals.RenderOptions Msg Model) -> Model -> Model
+showModal : (Model -> Modals.RenderOptions Msg) -> Model -> Model
 showModal modal model =
   let
     modalShower theModel = case theModel of
-        TheModel m -> Modals.render m (modal m)
+        TheModel m -> Modals.render (modal m) m
   in
     { model | modals = model.modals ++ [modalShower] }
 
@@ -704,7 +704,7 @@ renderUser model user =
         , not user.hasPass ? div [ class "is-new" ] [ text "New" ]
         ]
 
-loginModal : Model -> Modals.RenderOptions Msg Model
+loginModal : Model -> Modals.RenderOptions Msg
 loginModal model =
   let
     invalid = model.loginUserName == ""
@@ -714,10 +714,11 @@ loginModal model =
         _ -> "Something Untoward Transpired"
   in
     { title = text "Login"
-    , preventClose = \model -> model.loggingIn
-    , hideClose = always False
-    , isLoading = \model -> model.loggingIn
+    , preventClose = model.loggingIn
+    , hideClose = False
+    , isLoading = model.loggingIn
     , onClose = All [CloseTopModal, ClearLoginDetails]
+    , mdl = Mdl
     , content =
         div [ class "login-modal" ]
         [ div [ class "inputs" ]
@@ -751,16 +752,17 @@ loginModal model =
         ]
     }
 
-setPasswordModal : Bool -> Model -> Modals.RenderOptions Msg Model
+setPasswordModal : Bool -> Model -> Modals.RenderOptions Msg
 setPasswordModal bNeedsSetting model =
   let
     invalid = model.setPasswordFirst /= model.setPasswordSecond || String.length model.setPasswordFirst == 0
   in
     { title = text "Set Password"
-    , preventClose = always False
-    , isLoading = \model -> model.setPasswordSaving
-    , hideClose = always bNeedsSetting
+    , preventClose = False
+    , isLoading = model.setPasswordSaving
+    , hideClose = bNeedsSetting
     , onClose = CloseTopModal
+    , mdl = Mdl
     , content =
         div [ class "set-password-modal" ]
             [ bNeedsSetting ?
@@ -798,56 +800,74 @@ setPasswordModal bNeedsSetting model =
             ]
     }
 
-logoutModal : Model -> ModalOptions Msg Model
+logoutModal : Model -> Modals.RenderOptions Msg
 logoutModal model =
   let
     opts =
-        { defaultWarningModalOptions
-        | title = "Logout"
+        { title = "Logout"
         , icon = "lock"
         , message = "Are you sure you want to log out?"
-        , onPerform = Just DoLogout
+        , onPerform = All [CloseTopModal, DoLogout]
         , performText = "Log out"
+        , onCancel = CloseTopModal
+        , cancelText = "Cancel"
+        , hidePerform = False
+        , hideCancel = False
+        , mdl = Mdl
         }
   in
     Modals.choice opts model
 
-addUserModal : Model -> ModalOptions Msg Model
+addUserModal : Model -> Modals.RenderOptions Msg
 addUserModal model =
-    { defaultModalOptions
-    | title = text "Add User"
-    , isLoading = \model -> model.userSaving
+    { title = text "Add User"
+    , isLoading = model.userSaving
+    , preventClose = False
+    , hideClose = False
+    , onClose = CloseTopModal
+    , mdl = Mdl
     , content = userModalHtml False model
     }
 
-editUserModal : Model -> ModalOptions Msg Model
+editUserModal : Model -> Modals.RenderOptions Msg
 editUserModal model =
-    { defaultModalOptions
-    | title = text "Edit User"
-    , isLoading = \model -> model.userSaving
+    { title = text "Edit User"
+    , isLoading = model.userSaving
+    , preventClose = False
+    , hideClose = False
+    , onClose = CloseTopModal
+    , mdl = Mdl
     , content = userModalHtml True model
     }
 
-editCurrentUserModal : Model -> ModalOptions Msg Model
+editCurrentUserModal : Model -> Modals.RenderOptions Msg
 editCurrentUserModal model =
-    { defaultModalOptions
-    | title = text "Profile"
-    , isLoading = \model -> model.userSaving
+    { title = text "Profile"
+    , isLoading = model.userSaving
+    , preventClose = False
+    , hideClose = False
+    , onClose = CloseTopModal
+    , mdl = Mdl
     , content = userModalHtml True model
     }
 
-removeUserModal : Model -> ModalOptions Msg Model
+removeUserModal : Model -> Modals.RenderOptions Msg
 removeUserModal model =
   let
     opts =
-        { defaultWarningModalOptions
-        | title = "Remove User"
+        { title = "Remove User"
+        , icon = "warning"
         , message = "Are you sure you want to remove this user? This will also delete any Entries associated with them."
-        , onPerform = Just (All [CloseTopModal, DoRemoveUser]) -- close the "Edit user" modal we came from as well.
+        , onPerform = All [CloseTopModal, CloseTopModal, DoRemoveUser] -- close the "Edit user" modal we came from as well.
         , performText = "Remove"
+        , onCancel = CloseTopModal
+        , cancelText = "Cancel"
+        , hidePerform = False
+        , hideCancel = False
+        , mdl = Mdl
         }
   in
-    choiceModal opts model
+    Modals.choice opts model
 
 userModalHtml : Bool -> Model -> Html Msg
 userModalHtml isEditMode model =
@@ -935,34 +955,45 @@ userModalHtml isEditMode model =
             ]
         ]
 
-addEntryModal : Model -> ModalOptions Msg Model
+addEntryModal : Model -> Modals.RenderOptions Msg
 addEntryModal model =
-    { defaultModalOptions
-    | title = text "Add Entry"
-    , isLoading = \model -> model.entrySaving
+    { title = text "Add Entry"
+    , isLoading = model.entrySaving
+    , preventClose = False
+    , hideClose = False
+    , onClose = CloseTopModal
+    , mdl = Mdl
     , content = entryModalHtml False model
     }
 
-editEntryModal : Model -> ModalOptions Msg Model
+editEntryModal : Model -> Modals.RenderOptions Msg
 editEntryModal model =
-    { defaultModalOptions
-    | title = text "Edit Entry"
-    , isLoading = \model -> model.entrySaving
+    { title = text "Edit Entry"
+    , isLoading = model.entrySaving
+    , preventClose = False
+    , hideClose = False
+    , onClose = CloseTopModal
+    , mdl = Mdl
     , content = entryModalHtml True model
     }
 
-removeEntryModal : Model -> ModalOptions Msg Model
+removeEntryModal : Model -> Modals.RenderOptions Msg
 removeEntryModal model =
   let
     opts =
-        { defaultWarningModalOptions
-        | title = "Remove Entry"
+        { title = "Remove Entry"
+        , icon = "warning"
         , message = "Are you sure you want to remove this entry?"
-        , onPerform = Just (All [CloseTopModal, DoRemoveEntry]) -- close the "Edit entry" modal we came from as well.
+        , onPerform = All [CloseTopModal, CloseTopModal, DoRemoveEntry] -- close the "Edit entry" modal we came from as well.
         , performText = "Remove"
+        , onCancel = CloseTopModal
+        , cancelText = "Cancel"
+        , hidePerform = False
+        , hideCancel = False
+        , mdl = Mdl
         }
   in
-    choiceModal opts model
+    Modals.choice opts model
 
 entryModalHtml : Bool -> Model -> Html Msg
 entryModalHtml isEditMode model =
@@ -1068,18 +1099,23 @@ inputRow title html =
         , td [ class "input-widget" ] [ html ]
         ]
 
-resetPasswordModal : Model -> ModalOptions Msg Model
+resetPasswordModal : Model -> Modals.RenderOptions Msg
 resetPasswordModal model =
   let
     opts =
-        { defaultWarningModalOptions
-        | title = "Reset Password"
+        { title = "Reset Password"
+        , icon = "warning"
         , message = "Are you sure you want to reset this users password?"
-        , onPerform = Just DoResetPassword
+        , onPerform = All [CloseTopModal, DoResetPassword]
         , performText = "Reset"
+        , onCancel = CloseTopModal
+        , cancelText = "Cancel"
+        , hidePerform = False
+        , hideCancel = False
+        , mdl = Mdl
         }
   in
-    choiceModal opts model
+    Modals.choice opts model
 
 --
 -- Main

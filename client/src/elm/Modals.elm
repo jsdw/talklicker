@@ -15,21 +15,21 @@ import Html.Helpers exposing ((?))
 -- Render a basic modal overlay:
 --
 
-render : (Material.Msg msg -> msg) -> { a | mdl: Material.Model } -> RenderOptions msg { a | mdl: Material.Model } -> Html msg
-render mdl model {title,content,onClose,preventClose,hideClose,isLoading} =
+render : RenderOptions msg -> { a | mdl: Material.Model } -> Html msg
+render {title,content,onClose,preventClose,hideClose,isLoading,mdl} model =
     div [ class "modal-background" ]
         [ div [ class "modal-inner" ]
             [ div [ class "title" ]
                 [ div [ class "title-inner" ] [ title ]
-                , not (hideClose model) ?
+                , not hideClose ?
                     Button.render mdl [100,0] model.mdl
                         [ Button.icon
                         , Button.plain
                         , Button.onClick onClose
-                        , Button.disabled `when` preventClose model
+                        , Button.disabled `when` preventClose
                         ]
                         [ Icon.i "close" ]
-                , isLoading model ?
+                , isLoading ?
                     div [ class "loading-overlay" ]
                         [ Loading.indeterminate
                         ]
@@ -40,19 +40,21 @@ render mdl model {title,content,onClose,preventClose,hideClose,isLoading} =
             ]
         ]
 
-type alias RenderOptions msg model =
+type alias RenderOptions msg =
     { title : Html msg
     , content : Html msg
-    , preventClose : model -> Bool
-    , hideClose : model -> Bool
-    , isLoading : model -> Bool
+    , preventClose : Bool
+    , hideClose : Bool
+    , isLoading : Bool
     , onClose : msg
+    , mdl : Material.Msg msg -> msg
     }
 
 --
 -- A more specific version of general modals aimed
--- at showing alerts/warnings/confirms. provide the choice options
--- to choice and then the rest can be used as render.
+-- at showing alerts/warnings/confirms. choice converts
+-- ChoiceOptions to RenderOptions so it can be rendered
+-- as above.
 --
 
 type alias ChoiceOptions msg =
@@ -65,28 +67,17 @@ type alias ChoiceOptions msg =
     , performText : String
     , hidePerform : Bool
     , hideCancel : Bool
+    , mdl : Material.Msg msg -> msg
     }
 
-choiceOptions : msg -> msg -> ChoiceOptions msg
-choiceOptions onCancel onPerform =
-    { title = "Warning"
-    , icon = "warning"
-    , message = "Are you sure you want to do this?"
-    , onCancel = onCancel
-    , cancelText = "Dismiss"
-    , hideCancel = False
-    , onPerform = onPerform
-    , performText = "Perform"
-    , hidePerform = False
-    }
-
-choice : ChoiceOptions msg -> (Material.Msg msg -> msg) -> { a | mdl: Material.Model } -> RenderOptions msg { a | mdl: Material.Model }
-choice opts mdl model =
+choice : ChoiceOptions msg -> { a | mdl: Material.Model } -> RenderOptions msg
+choice opts model =
     { title = text opts.title
-    , preventClose = always False
+    , preventClose = False
     , onClose = opts.onCancel
-    , hideClose = always False
-    , isLoading = always False
+    , hideClose = False
+    , isLoading = False
+    , mdl = opts.mdl
     , content =
         div [ class "choice-modal" ]
             [ div [ class "content" ]
@@ -97,7 +88,7 @@ choice opts mdl model =
                 ]
             , div [ class "buttons" ]
                 [ not opts.hideCancel ?
-                    Button.render mdl [200,0] model.mdl
+                    Button.render opts.mdl [200,0] model.mdl
                         [ Button.raised
                         , Button.colored
                         , Button.onClick opts.onCancel
@@ -105,7 +96,7 @@ choice opts mdl model =
                         ]
                         [ text opts.cancelText ]
                 , not opts.hidePerform ?
-                    Button.render mdl [200,1] model.mdl
+                    Button.render opts.mdl [200,1] model.mdl
                         [ Button.raised
                         , Button.colored
                         , Button.onClick opts.onPerform
