@@ -21,6 +21,7 @@ import Material.Menu as Menu
 import Material.Tabs as Tabs
 
 import Modals
+import Modals.Entry as EntryModal
 import Html.Helpers exposing (..)
 
 import Api
@@ -61,14 +62,8 @@ model =
     , userError = False
 
     -- entry stuff for add/edit:
-    , entryId = ""
-    , entryUser = ""
-    , entryDuration = 3600000
-    , entryName = ""
-    , entryDescription = ""
-    , entryType = Talk
-    , entrySaving = False
-    , entryError = Nothing
+    , entryModal = EntryModal.model
+    , entryToRemove = ""
 
     , mdl = Material.model
     }
@@ -102,14 +97,8 @@ type alias Model =
     , userError : Bool
 
     -- entry stuff for add/edit:
-    , entryId : String
-    , entryUser : String
-    , entryDuration : Int
-    , entryName : String
-    , entryDescription : String
-    , entryType : EntryType
-    , entrySaving : Bool
-    , entryError : Maybe EntryError
+    , entryModal : EntryModal.Model
+    , entryToRemove : String
 
     , mdl : Material.Model
 
@@ -171,20 +160,10 @@ type Msg
     -- add/edit entry modal:
     | ShowAddEntryModal
     | ShowEditEntryModal Entry
-    | UpdateEntryName String
-    | UpdateEntryDescription String
-    | UpdateEntryType EntryType
-    | UpdateEntryDuration Int
-    | DoAddEntry
-    | AddEntryFailed EntryError
-    | AddEntrySuccess Entry
-    | DoEditEntry
-    | EditEntryFailed EntryError
-    | EditEntrySuccess Entry
+    | EntryModal EntryModal.Msg
 
     -- remove entry alert/action (from add entry modal)
-    | ShowRemoveEntryModal
-    | DoRemoveEntry
+    | DoRemoveEntry String
     | DoneRemoveEntry
 
     -- perform several actions at once
@@ -280,41 +259,35 @@ update msg model = case logMsg msg of
 
     -- add/edit entry modals:
     ShowAddEntryModal ->
-        showModal addEntryModal (prepareModelForAddEntry model) ! []
+        case model.user of
+            Nothing -> model ! []
+            Just u -> showModal (EntryModal.addModal .entryModal EntryModal) { model | entryModal = EntryModal.prepareForAdd u model.entryModal } ! []
     ShowEditEntryModal entry ->
-        showModal editEntryModal (prepareModelForEditEntry entry model) ! []
-    UpdateEntryName val ->
-        { model | entryName = val } ! []
-    UpdateEntryDescription val ->
-        { model | entryDescription = val } ! []
-    UpdateEntryType val ->
-        { model | entryType = val } ! []
-    UpdateEntryDuration val ->
-        { model | entryDuration = val } ! []
-    DoAddEntry ->
-        { model | entrySaving = True } ! [doAddEntry model]
-    AddEntrySuccess entry ->
-        closeTopModal { model | entries = model.entries ++ [entry], entrySaving = False } ! []
-    AddEntryFailed err ->
-        { model | entrySaving = False, entryError = Just err } ! []
-    DoEditEntry ->
-        { model | entrySaving = True } ! [doEditEntry model]
-    EditEntrySuccess entry ->
+        showModal (EntryModal.editModal .entryModal EntryModal) { model | entryModal = EntryModal.prepareForEdit entry model.entryModal } ! []
+
+    -- handle entry modal updates:
+    EntryModal msg ->
       let
-        entries' = List.map (\e -> if e.id == entry.id then entry else e) model.entries
+        (entryModal', act, cmd) = EntryModal.update msg model.entryModal
+        actedModel = case act of
+            Just (EntryModal.Added entry) ->
+                closeTopModal { model | entries = model.entries ++ [entry] }
+            Just (EntryModal.Updated entry) ->
+                closeTopModal { model | entries = List.map (\e -> if e.id == entry.id then entry else e) model.entries }
+            Just (EntryModal.Remove entryId) ->
+                showModal removeEntryModal { model | entryToRemove = entryId }
+            Just EntryModal.CloseMe ->
+                closeTopModal model
+            _ -> model
       in
-        closeTopModal { model | entries = entries', entrySaving = False } ! []
-    EditEntryFailed err ->
-        { model | entrySaving = False, entryError = Just err } ! []
+        { actedModel | entryModal = entryModal' } ! [Cmd.map EntryModal cmd]
 
     -- remove an entry
-    ShowRemoveEntryModal ->
-        showModal removeEntryModal model ! []
-    DoRemoveEntry ->
+    DoRemoveEntry id ->
       let
-        entries' = List.filter (\e -> e.id /= model.entryId) model.entries
+        entries' = List.filter (\e -> e.id /= id) model.entries
       in
-        { model | entries = entries' } ! [doRemoveEntry model]
+        { model | entries = entries' } ! [doRemoveEntry id]
     DoneRemoveEntry ->
         model ! [] -- Do nothing at the mo.
 
@@ -360,35 +333,6 @@ showSetPasswordIfNeeded model =
         then showModal (setPasswordModal True) model
         else model
 
-prepareModelForAddEntry : Model -> Model
-prepareModelForAddEntry model =
-  let
-    doUpdate user =
-        { model
-        | entryUser = user.name
-        , entryDuration = 3600000
-        , entryName = ""
-        , entryDescription = ""
-        , entryType = Talk
-        , entryError = Nothing
-        }
-  in
-    case model.user of
-        Nothing -> model
-        Just u -> doUpdate u
-
-prepareModelForEditEntry : Entry -> Model -> Model
-prepareModelForEditEntry entry model =
-    { model
-    | entryId = entry.id
-    , entryUser = entry.user
-    , entryDuration = entry.duration
-    , entryName = entry.name
-    , entryDescription = entry.description
-    , entryType = entry.entryType
-    , entryError = Nothing
-    }
-
 prepareEditCurrentUser : Model -> Model
 prepareEditCurrentUser model =
   let
@@ -422,11 +366,11 @@ prepareEditUser user model =
     , userSaving = False
     , userError = False}
 
-showModal : (Model -> Modals.RenderOptions Msg) -> Model -> Model
-showModal modal model =
+showModal : (Model -> Html Msg) -> Model -> Model
+showModal modalFn model =
   let
     modalShower theModel = case theModel of
-        TheModel m -> Modals.render (modal m) m
+        TheModel m -> modalFn m
   in
     { model | modals = model.modals ++ [modalShower] }
 
@@ -491,30 +435,6 @@ resetLoginState model =
     , loggingIn = False
     }
 
-entryishFromModel : Model -> Entries.EntrySettable {}
-entryishFromModel model =
-    { id = model.entryId
-    , user = model.entryUser
-    , duration = model.entryDuration
-    , name = model.entryName
-    , description = model.entryDescription
-    , entryType = model.entryType
-    }
-
-doAddEntry : Model -> Cmd Msg
-doAddEntry model =
-  let
-    entry = entryishFromModel model
-  in
-    Task.perform AddEntryFailed AddEntrySuccess (Entries.add entry)
-
-doEditEntry : Model -> Cmd Msg
-doEditEntry model =
-  let
-    entry = entryishFromModel model
-  in
-    Task.perform EditEntryFailed EditEntrySuccess (Entries.set entry)
-
 updateModelWithUser : User -> Model -> Model
 updateModelWithUser user model =
   let
@@ -528,9 +448,9 @@ updateModelWithUser user model =
   in
     model |> updateCurrUser |> updateUserList |> appendToUserList
 
-doRemoveEntry : Model -> Cmd Msg
-doRemoveEntry model =
-  Task.perform ApiError (\_ -> DoneRemoveEntry) (Entries.remove model.entryId)
+doRemoveEntry : String -> Cmd Msg
+doRemoveEntry entryId =
+  Task.perform ApiError (\_ -> DoneRemoveEntry) (Entries.remove entryId)
 
 --
 -- View
@@ -704,7 +624,7 @@ renderUser model user =
         , not user.hasPass ? div [ class "is-new" ] [ text "New" ]
         ]
 
-loginModal : Model -> Modals.RenderOptions Msg
+loginModal : Model -> Html Msg
 loginModal model =
   let
     invalid = model.loginUserName == ""
@@ -712,95 +632,99 @@ loginModal model =
         Just LoginBadUser -> "Wrong username"
         Just LoginBadPassword -> "Wrong password"
         _ -> "Something Untoward Transpired"
-  in
-    { title = text "Login"
-    , preventClose = model.loggingIn
-    , hideClose = False
-    , isLoading = model.loggingIn
-    , onClose = All [CloseTopModal, ClearLoginDetails]
-    , mdl = Mdl
-    , content =
-        div [ class "login-modal" ]
-        [ div [ class "inputs" ]
-            [ Textfield.render Mdl [70,0] model.mdl
-                [ Textfield.label "Username"
-                , Textfield.floatingLabel
-                , Textfield.onInput LoginUserName
-                , Textfield.value model.loginUserName
-                ]
-            , Textfield.render Mdl [70,1] model.mdl
-                [ Textfield.label "Password"
-                , Textfield.floatingLabel
-                , Textfield.password
-                , Textfield.onInput LoginPassword
-                , Textfield.value model.loginPassword
-                ]
-            ]
-        , div [ class "bottom-row" ]
-            [ Button.render Mdl [0] model.mdl
-                [ Button.raised
-                , Button.colored
-                , Button.disabled `when` invalid
-                , Button.onClick DoLogin
-                , cs "login-button"
-                ]
-                [ text "Login" ]
-            , model.loginError ??
-                div [ class "error" ]
-                    [ text loginErrorString ]
-            ]
-        ]
-    }
-
-setPasswordModal : Bool -> Model -> Modals.RenderOptions Msg
-setPasswordModal bNeedsSetting model =
-  let
-    invalid = model.setPasswordFirst /= model.setPasswordSecond || String.length model.setPasswordFirst == 0
-  in
-    { title = text "Set Password"
-    , preventClose = False
-    , isLoading = model.setPasswordSaving
-    , hideClose = bNeedsSetting
-    , onClose = CloseTopModal
-    , mdl = Mdl
-    , content =
-        div [ class "set-password-modal" ]
-            [ bNeedsSetting ?
-                div [ class "needs-setting-text" ]
-                    [ text "You have not yet set a password. Please do so now." ]
-            , div [ class "inputs" ]
-                [ Textfield.render Mdl [71,1] model.mdl
-                    [ Textfield.label "New Password"
+    opts =
+        { title = text "Login"
+        , preventClose = model.loggingIn
+        , hideClose = False
+        , isLoading = model.loggingIn
+        , onClose = All [CloseTopModal, ClearLoginDetails]
+        , mdl = Mdl
+        , content =
+            div [ class "login-modal" ]
+            [ div [ class "inputs" ]
+                [ Textfield.render Mdl [70,0] model.mdl
+                    [ Textfield.label "Username"
                     , Textfield.floatingLabel
-                    , Textfield.password
-                    , Textfield.onInput SetPasswordFirst
-                    , Textfield.value model.setPasswordFirst
+                    , Textfield.onInput LoginUserName
+                    , Textfield.value model.loginUserName
                     ]
-                , Textfield.render Mdl [71,2] model.mdl
-                    [ Textfield.label "New Password Again"
+                , Textfield.render Mdl [70,1] model.mdl
+                    [ Textfield.label "Password"
                     , Textfield.floatingLabel
                     , Textfield.password
-                    , Textfield.onInput SetPasswordSecond
-                    , Textfield.value model.setPasswordSecond
+                    , Textfield.onInput LoginPassword
+                    , Textfield.value model.loginPassword
                     ]
                 ]
             , div [ class "bottom-row" ]
-                [ Button.render Mdl [71,3] model.mdl
+                [ Button.render Mdl [0] model.mdl
                     [ Button.raised
                     , Button.colored
                     , Button.disabled `when` invalid
-                    , Button.onClick DoSetPassword
-                    , cs "set-password-button"
+                    , Button.onClick DoLogin
+                    , cs "login-button"
                     ]
-                    [ text "Set Password" ]
-                , (invalid && model.setPasswordSecond /= "") ?
+                    [ text "Login" ]
+                , model.loginError ??
                     div [ class "error" ]
-                        [ text "Passwords do not match" ]
+                        [ text loginErrorString ]
                 ]
             ]
-    }
+        }
+  in
+    Modals.render opts model
 
-logoutModal : Model -> Modals.RenderOptions Msg
+setPasswordModal : Bool -> Model -> Html Msg
+setPasswordModal bNeedsSetting model =
+  let
+    invalid = model.setPasswordFirst /= model.setPasswordSecond || String.length model.setPasswordFirst == 0
+    opts =
+        { title = text "Set Password"
+        , preventClose = False
+        , isLoading = model.setPasswordSaving
+        , hideClose = bNeedsSetting
+        , onClose = CloseTopModal
+        , mdl = Mdl
+        , content =
+            div [ class "set-password-modal" ]
+                [ bNeedsSetting ?
+                    div [ class "needs-setting-text" ]
+                        [ text "You have not yet set a password. Please do so now." ]
+                , div [ class "inputs" ]
+                    [ Textfield.render Mdl [71,1] model.mdl
+                        [ Textfield.label "New Password"
+                        , Textfield.floatingLabel
+                        , Textfield.password
+                        , Textfield.onInput SetPasswordFirst
+                        , Textfield.value model.setPasswordFirst
+                        ]
+                    , Textfield.render Mdl [71,2] model.mdl
+                        [ Textfield.label "New Password Again"
+                        , Textfield.floatingLabel
+                        , Textfield.password
+                        , Textfield.onInput SetPasswordSecond
+                        , Textfield.value model.setPasswordSecond
+                        ]
+                    ]
+                , div [ class "bottom-row" ]
+                    [ Button.render Mdl [71,3] model.mdl
+                        [ Button.raised
+                        , Button.colored
+                        , Button.disabled `when` invalid
+                        , Button.onClick DoSetPassword
+                        , cs "set-password-button"
+                        ]
+                        [ text "Set Password" ]
+                    , (invalid && model.setPasswordSecond /= "") ?
+                        div [ class "error" ]
+                            [ text "Passwords do not match" ]
+                    ]
+                ]
+        }
+  in
+    Modals.render opts model
+
+logoutModal : Model -> Html Msg
 logoutModal model =
   let
     opts =
@@ -818,40 +742,52 @@ logoutModal model =
   in
     Modals.choice opts model
 
-addUserModal : Model -> Modals.RenderOptions Msg
+addUserModal : Model -> Html Msg
 addUserModal model =
-    { title = text "Add User"
-    , isLoading = model.userSaving
-    , preventClose = False
-    , hideClose = False
-    , onClose = CloseTopModal
-    , mdl = Mdl
-    , content = userModalHtml False model
-    }
+  let
+    opts =
+        { title = text "Add User"
+        , isLoading = model.userSaving
+        , preventClose = False
+        , hideClose = False
+        , onClose = CloseTopModal
+        , mdl = Mdl
+        , content = userModalHtml False model
+        }
+  in
+    Modals.render opts model
 
-editUserModal : Model -> Modals.RenderOptions Msg
+editUserModal : Model -> Html Msg
 editUserModal model =
-    { title = text "Edit User"
-    , isLoading = model.userSaving
-    , preventClose = False
-    , hideClose = False
-    , onClose = CloseTopModal
-    , mdl = Mdl
-    , content = userModalHtml True model
-    }
+  let
+    opts =
+        { title = text "Edit User"
+        , isLoading = model.userSaving
+        , preventClose = False
+        , hideClose = False
+        , onClose = CloseTopModal
+        , mdl = Mdl
+        , content = userModalHtml True model
+        }
+  in
+    Modals.render opts model
 
-editCurrentUserModal : Model -> Modals.RenderOptions Msg
+editCurrentUserModal : Model -> Html Msg
 editCurrentUserModal model =
-    { title = text "Profile"
-    , isLoading = model.userSaving
-    , preventClose = False
-    , hideClose = False
-    , onClose = CloseTopModal
-    , mdl = Mdl
-    , content = userModalHtml True model
-    }
+  let
+    opts =
+        { title = text "Profile"
+        , isLoading = model.userSaving
+        , preventClose = False
+        , hideClose = False
+        , onClose = CloseTopModal
+        , mdl = Mdl
+        , content = userModalHtml True model
+        }
+  in
+    Modals.render opts model
 
-removeUserModal : Model -> Modals.RenderOptions Msg
+removeUserModal : Model -> Html Msg
 removeUserModal model =
   let
     opts =
@@ -955,36 +891,14 @@ userModalHtml isEditMode model =
             ]
         ]
 
-addEntryModal : Model -> Modals.RenderOptions Msg
-addEntryModal model =
-    { title = text "Add Entry"
-    , isLoading = model.entrySaving
-    , preventClose = False
-    , hideClose = False
-    , onClose = CloseTopModal
-    , mdl = Mdl
-    , content = entryModalHtml False model
-    }
-
-editEntryModal : Model -> Modals.RenderOptions Msg
-editEntryModal model =
-    { title = text "Edit Entry"
-    , isLoading = model.entrySaving
-    , preventClose = False
-    , hideClose = False
-    , onClose = CloseTopModal
-    , mdl = Mdl
-    , content = entryModalHtml True model
-    }
-
-removeEntryModal : Model -> Modals.RenderOptions Msg
+removeEntryModal : Model -> Html Msg
 removeEntryModal model =
   let
     opts =
         { title = "Remove Entry"
         , icon = "warning"
         , message = "Are you sure you want to remove this entry?"
-        , onPerform = All [CloseTopModal, CloseTopModal, DoRemoveEntry] -- close the "Edit entry" modal we came from as well.
+        , onPerform = All [CloseTopModal, CloseTopModal, DoRemoveEntry model.entryToRemove] -- close the "Edit entry" modal we came from as well.
         , performText = "Remove"
         , onCancel = CloseTopModal
         , cancelText = "Cancel"
@@ -995,111 +909,7 @@ removeEntryModal model =
   in
     Modals.choice opts model
 
-entryModalHtml : Bool -> Model -> Html Msg
-entryModalHtml isEditMode model =
-  let
-    errorString = case model.entryError of
-        Just EntryBadName -> "Entry name required"
-        Just EntryBadDescription -> "Entry description required"
-        Just EntryBadDuration -> "Entry duration required"
-        _ -> "Something unsettling happened!"
-    durationString =
-        toString (toFloat model.entryDuration / 3600000) ++ "h"
-  in
-    div [ class "entry-modal" ]
-        [ table [ class "inputs" ]
-            [ inputRow "Title" <|
-                Textfield.render Mdl [7,0] model.mdl
-                    [ Textfield.label "My talk or project"
-                    , Textfield.onInput UpdateEntryName
-                    , Textfield.value model.entryName
-                    ]
-            , inputRow "Description" <|
-                Textfield.render Mdl [7,1] model.mdl
-                    [ Textfield.label "More detail"
-                    , Textfield.textarea
-                    , Textfield.rows 6
-                    , Textfield.onInput UpdateEntryDescription
-                    , Textfield.value model.entryDescription
-                    ]
-            , inputRow "Type" <|
-                div [ class "type-inputs" ]
-                    [ Toggles.radio Mdl [7,2] model.mdl
-                        [ Toggles.value (model.entryType == Talk)
-                        , Toggles.group "EntryType"
-                        , Toggles.ripple
-                        , Toggles.onClick (UpdateEntryType Talk)
-                        ]
-                        [ text "Talk" ]
-                    , Toggles.radio Mdl [7,3] model.mdl
-                        [ Toggles.value (model.entryType == Project)
-                        , Toggles.group "EntryType"
-                        , Toggles.ripple
-                        , Toggles.onClick (UpdateEntryType Project)
-                        ]
-                        [ text "Project" ]
-                    ]
-            , inputRow "Duration" <|
-                div [ class "duration-input" ]
-                    [ text durationString
-                    , Menu.render Mdl [0] model.mdl
-                        [ Menu.ripple, Menu.bottomRight ]
-                        [ Menu.item
-                            [ Menu.onSelect (UpdateEntryDuration (1 * 1800000)) ]
-                            [ text "30 minutes" ]
-                        , Menu.item
-                            [ Menu.onSelect (UpdateEntryDuration (1 * 3600000)) ]
-                            [ text "1 hour" ]
-                        , Menu.item
-                            [ Menu.onSelect (UpdateEntryDuration (2 * 3600000)) ]
-                            [ text "2 hours" ]
-                        , Menu.item
-                            [ Menu.onSelect (UpdateEntryDuration (4 * 3600000)) ]
-                            [ text "4 hours" ]
-                        , Menu.item
-                            [ Menu.onSelect (UpdateEntryDuration (1 * 8 * 3600000)) ]
-                            [ text "1 day" ]
-                        , Menu.item
-                            [ Menu.onSelect (UpdateEntryDuration (2 * 8 * 3600000)) ]
-                            [ text "2 days" ]
-                        ]
-                    ]
-            ]
-        , div [ class "bottom-row" ]
-            [ Button.render Mdl [0] model.mdl
-                [ Button.raised
-                , Button.colored
-                , Button.disabled `when` (model.entryName == "" || model.entryDescription == "")
-                , Button.onClick (if isEditMode then DoEditEntry else DoAddEntry)
-                , cs "add-entry-button"
-                ]
-                [ text (if isEditMode then "Save Changes" else "Add Entry") ]
-            , if isJust model.entryError
-                then div [ class "error" ] [ text errorString ]
-                else div [ class "space-filler" ] []
-            , isEditMode ?
-                div [ class "delete" ]
-                    [ Button.render Mdl [0] model.mdl
-                        [ Button.icon
-                        , Button.ripple
-                        , Button.onClick ShowRemoveEntryModal
-                        ]
-                        [ Icon.i "delete"]
-                    ]
-            ]
-        ]
-
-inputRow : String -> Html a -> Html a
-inputRow title html =
-  let
-    key = String.map (\c -> if c == ' ' then '-' else c) <| String.toLower title
-  in
-    tr [ class ("input-row input-row-"++key) ]
-        [ td [ class ("input-name input-name-"++key) ] [ text title ]
-        , td [ class "input-widget" ] [ html ]
-        ]
-
-resetPasswordModal : Model -> Modals.RenderOptions Msg
+resetPasswordModal : Model -> Html Msg
 resetPasswordModal model =
   let
     opts =
