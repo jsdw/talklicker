@@ -142,9 +142,9 @@ update msg model = case msg of
     Close ->
         (model, CloseMe) ^!! []
     DoRemoveEntry ->
-        (model, Removed model.entryId) ^!! [doRemoveEntry model.entryId]
+        model !! [doRemoveEntry model.entryId]
     DoneRemoveEntry ->
-        model !! [] -- do nothing at the mo.
+        (model, Removed model.entryId) ^!! []
     Mdl msg' ->
         let (model,cmd) = Material.update msg' model
         in (model, Nothing, cmd)

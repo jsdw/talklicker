@@ -16,12 +16,13 @@ import Material.Icon as Icon
 import Material.Button as Button
 import Material.Textfield as Textfield
 import Material.Progress as Loading
-import Material.Toggles as Toggles
+--import Material.Toggles as Toggles
 import Material.Menu as Menu
 import Material.Tabs as Tabs
 
 import Modals
 import Modals.Entry as EntryModal
+import Modals.User as UserModal
 import Html.Helpers exposing (..)
 
 import Api
@@ -55,11 +56,7 @@ model =
     , setPasswordSaving = False
 
     -- add/edit user modal:
-    , userName = ""
-    , userFullName = ""
-    , userType = NormalUser
-    , userSaving = False
-    , userError = False
+    , userModal = UserModal.model
 
     -- entry stuff for add/edit:
     , entryModal = EntryModal.model
@@ -89,11 +86,7 @@ type alias Model =
     , setPasswordSaving : Bool
 
     -- add/edit user modal:
-    , userName : String
-    , userFullName : String
-    , userType : UserType
-    , userSaving : Bool
-    , userError : Bool
+    , userModal : UserModal.Model
 
     -- entry stuff for add/edit:
     , entryModal : EntryModal.Model
@@ -139,21 +132,8 @@ type Msg
     | ShowEditCurrentUserModal
     | ShowAddUserModal
     | ShowEditUserModal User
+    | UserModal UserModal.Msg
     | ShowSetPasswordModal
-    | ShowResetPassword
-    | DoResetPassword
-    | UpdateUserName String
-    | UpdateUserFullName String
-    | UpdateUserType UserType
-    | DoEditUser
-    | EditUserSuccess User
-    | EditUserFailed
-    | DoAddUser
-
-    -- remove a user (from add user modal)
-    | ShowRemoveUserModal
-    | DoRemoveUser
-    | DoneRemoveUser
 
     -- add/edit/remove entry modal:
     | ShowAddEntryModal
@@ -214,42 +194,22 @@ update msg model = case logMsg msg of
 
     -- add/edit user modal:
     ShowEditCurrentUserModal ->
-        showModal editCurrentUserModal (prepareEditCurrentUser model) ! []
+        case model.user of
+            Nothing -> model ! []
+            Just u ->
+              showModal
+                (UserModal.profileModal .userModal UserModal)
+                { model | userModal = UserModal.prepareForEdit model.user u model.userModal } ! []
     ShowEditUserModal user ->
-        showModal editUserModal (prepareEditUser user model) ! []
+        showModal (UserModal.editModal .userModal UserModal) { model | userModal = UserModal.prepareForEdit model.user user model.userModal } ! []
+    ShowAddUserModal ->
+        showModal (UserModal.addModal .userModal UserModal) { model | userModal = UserModal.prepareForAdd model.user model.userModal }  ! []
+
+    -- handle user modal updates:
+    UserModal msg ->
+        handleUserUpdate msg
     ShowSetPasswordModal ->
         showModal (setPasswordModal False) { model | setPasswordFirst = "", setPasswordSecond = "" } ! []
-    ShowResetPassword ->
-        showModal resetPasswordModal model ! []
-    DoResetPassword ->
-        model ! [doResetPassword model.userName]
-    ShowAddUserModal ->
-        showModal addUserModal (prepareAddUser model) ! []
-    UpdateUserName str ->
-        { model | userName = str } ! []
-    UpdateUserFullName str ->
-        { model | userFullName = str } ! []
-    UpdateUserType ty ->
-        { model | userType = ty } ! []
-    DoEditUser ->
-        { model | userSaving = True, userError = False } ! [doEditUser model]
-    DoAddUser ->
-        { model | userSaving = True, userError = False } ! [doAddUser model]
-    EditUserSuccess user ->
-        (closeTopModal <| updateModelWithUser user { model | userSaving = False } ) ! []
-    EditUserFailed ->
-        { model | userSaving = False, userError = True }  ! []
-
-    -- remove user
-    ShowRemoveUserModal ->
-        showModal removeUserModal model ! []
-    DoRemoveUser ->
-      let
-        users' = Dict.filter (\name _ -> name /= model.userName) model.users
-      in
-        { model | users = users' } ! [doRemoveUser model]
-    DoneRemoveUser ->
-        model ! [ updateEverything ] -- make sure everything is uptodate.
 
     -- add/edit entry modals:
     ShowAddEntryModal ->
@@ -261,22 +221,7 @@ update msg model = case logMsg msg of
 
     -- handle entry modal updates:
     EntryModal msg ->
-      let
-        (entryModal', act, cmd) = EntryModal.update msg model.entryModal
-        actedModel = case act of
-            Just (EntryModal.Added entry) ->
-                closeTopModal { model | entries = model.entries ++ [entry] }
-            Just (EntryModal.Updated entry) ->
-                closeTopModal { model | entries = List.map (\e -> if e.id == entry.id then entry else e) model.entries }
-            Just (EntryModal.Removed entryId) ->
-                closeTopModal { model | entries = List.filter (\e -> e.id /= entryId) model.entries }
-            Just EntryModal.CloseMe ->
-                closeTopModal model
-            Nothing ->
-                model
-      in
-        { actedModel | entryModal = entryModal' } ! [Cmd.map EntryModal cmd]
-
+        handleEntryUpdate msg
     CloseTopModal ->
         closeTopModal model ! []
 
@@ -298,6 +243,45 @@ update msg model = case logMsg msg of
     Noop ->
         (model, Cmd.none)
 
+-- handle updates to the userModal
+handleUserUpdate : UserModal.Msg -> (Model, Cmd Msg)
+handleUserUpdate msg =
+  let
+    (userModal', act, cmd) = UserModal.update msg model.userModal
+    (actedModel, aCmd) = case act of
+        Just (UserModal.Added user) ->
+            closeTopModal { model | users = Dict.insert user.name user model.users } ! []
+        Just (UserModal.Updated user) ->
+            closeTopModal { model | users = Dict.insert user.name user model.users } ! []
+        Just (UserModal.Removed userId) ->
+            closeTopModal { model | users = Dict.remove userId model.users } ! [updateEverything]
+        Just UserModal.CloseMe ->
+            closeTopModal model ! []
+        Just UserModal.ShowSetPasswordModal ->
+            showModal (setPasswordModal False) { model | setPasswordFirst = "", setPasswordSecond = "" } ! []
+        Nothing ->
+            model ! []
+  in
+    { actedModel | userModal = userModal' } ! [ aCmd, Cmd.map UserModal cmd ]
+
+handleEntryUpdate : EntryModal.Msg -> (Model, Cmd Msg)
+handleEntryUpdate msg =
+  let
+    (entryModal', act, cmd) = EntryModal.update msg model.entryModal
+    actedModel = case act of
+        Just (EntryModal.Added entry) ->
+            closeTopModal { model | entries = model.entries ++ [entry] }
+        Just (EntryModal.Updated entry) ->
+            closeTopModal { model | entries = List.map (\e -> if e.id == entry.id then entry else e) model.entries }
+        Just (EntryModal.Removed entryId) ->
+            closeTopModal { model | entries = List.filter (\e -> e.id /= entryId) model.entries }
+        Just EntryModal.CloseMe ->
+            closeTopModal model
+        Nothing ->
+            model
+  in
+    { actedModel | entryModal = entryModal' } ! [Cmd.map EntryModal cmd]
+
 -- logs Msg's but hides sensitive information on a case by case:
 logMsg : Msg -> Msg
 logMsg msg =
@@ -318,39 +302,6 @@ showSetPasswordIfNeeded model =
     if Maybe.map .hasPass model.user == Just False
         then showModal (setPasswordModal True) model
         else model
-
-prepareEditCurrentUser : Model -> Model
-prepareEditCurrentUser model =
-  let
-    update u =
-        { model
-        | userName = u.name
-        , userFullName = u.fullName
-        , userType = u.userType
-        }
-  in
-    case model.user of
-        Nothing -> model
-        Just u -> update u
-
-prepareAddUser : Model -> Model
-prepareAddUser model =
-    { model
-    | userName = ""
-    , userFullName = ""
-    , userType = NormalUser
-    , userSaving = False
-    , userError = False
-    }
-
-prepareEditUser : User -> Model -> Model
-prepareEditUser user model =
-    { model
-    | userName = user.name
-    , userFullName = user.fullName
-    , userType = user.userType
-    , userSaving = False
-    , userError = False}
 
 showModal : (Model -> Html Msg) -> Model -> Model
 showModal modalFn model =
@@ -387,30 +338,6 @@ doSetPassword model =
     case model.user of
         Nothing -> Cmd.none
         Just u -> Task.perform (always SetPasswordFailed) (always SetPasswordSuccess) (setPass u)
-
-doResetPassword : String -> Cmd Msg
-doResetPassword username =
-  let
-    resetPass = Users.set username { fullName = Nothing, userType = Nothing, pass = Just "" }
-  in
-    Task.perform (always Noop) (always Noop) resetPass
-
-doEditUser : Model -> Cmd Msg
-doEditUser model =
-  let
-    editUser = Users.set model.userName { fullName = Just model.userFullName, userType = Just model.userType, pass = Nothing }
-  in
-    Task.perform (always EditUserFailed) EditUserSuccess editUser
-
-doAddUser : Model -> Cmd Msg
-doAddUser model =
-  let
-    addUser = Users.add { name = model.userName, fullName = model.userFullName, userType = model.userType, pass = "" }
-  in
-    Task.perform (always EditUserFailed) EditUserSuccess addUser
-
-doRemoveUser : Model -> Cmd Msg
-doRemoveUser model = Task.perform (always DoneRemoveUser) (always DoneRemoveUser) (Users.remove model.userName)
 
 resetLoginState : Model -> Model
 resetLoginState model =
@@ -717,176 +644,6 @@ logoutModal model =
         , message = "Are you sure you want to log out?"
         , onPerform = All [CloseTopModal, DoLogout]
         , performText = "Log out"
-        , onCancel = CloseTopModal
-        , cancelText = "Cancel"
-        , hidePerform = False
-        , hideCancel = False
-        , mdl = Mdl
-        }
-  in
-    Modals.choice opts model
-
-addUserModal : Model -> Html Msg
-addUserModal model =
-  let
-    opts =
-        { title = text "Add User"
-        , isLoading = model.userSaving
-        , preventClose = False
-        , hideClose = False
-        , onClose = CloseTopModal
-        , mdl = Mdl
-        , cover = []
-        , content = userModalHtml False model
-        }
-  in
-    Modals.render opts model
-
-editUserModal : Model -> Html Msg
-editUserModal model =
-  let
-    opts =
-        { title = text "Edit User"
-        , isLoading = model.userSaving
-        , preventClose = False
-        , hideClose = False
-        , onClose = CloseTopModal
-        , mdl = Mdl
-        , cover = []
-        , content = userModalHtml True model
-        }
-  in
-    Modals.render opts model
-
-editCurrentUserModal : Model -> Html Msg
-editCurrentUserModal model =
-  let
-    opts =
-        { title = text "Profile"
-        , isLoading = model.userSaving
-        , preventClose = False
-        , hideClose = False
-        , onClose = CloseTopModal
-        , mdl = Mdl
-        , cover = []
-        , content = userModalHtml True model
-        }
-  in
-    Modals.render opts model
-
-removeUserModal : Model -> Html Msg
-removeUserModal model =
-  let
-    opts =
-        { title = "Remove User"
-        , icon = "warning"
-        , message = "Are you sure you want to remove this user? This will also delete any Entries associated with them."
-        , onPerform = All [CloseTopModal, CloseTopModal, DoRemoveUser] -- close the "Edit user" modal we came from as well.
-        , performText = "Remove"
-        , onCancel = CloseTopModal
-        , cancelText = "Cancel"
-        , hidePerform = False
-        , hideCancel = False
-        , mdl = Mdl
-        }
-  in
-    Modals.choice opts model
-
-userModalHtml : Bool -> Model -> Html Msg
-userModalHtml isEditMode model =
-  let
-    isAdmin = Maybe.map .userType model.user == Just Admin
-    isMe = isEditMode && Maybe.map .name model.user == Just model.userName
-    userType = case model.userType of
-        Admin -> "Administrator"
-        NormalUser -> "Normal User"
-  in
-    div [ class "user-modal" ]
-        [ table [ class "inputs" ]
-            [ inputRow "Username" <|
-                if isEditMode
-                then
-                    text model.userName
-                else
-                    Textfield.render Mdl [10,0] model.mdl
-                        [ Textfield.onInput UpdateUserName
-                        , Textfield.value model.userName
-                        ]
-            , inputRow "Display Name" <|
-                Textfield.render Mdl [10,1] model.mdl
-                    [ Textfield.onInput UpdateUserFullName
-                    , Textfield.value model.userFullName
-                    ]
-            , (not isMe && (isAdmin || not isEditMode)) ?
-                (inputRow "Type" <|
-                    div [ class "type-inputs" ]
-                        [ Toggles.radio Mdl [10,2] model.mdl
-                            [ Toggles.value (model.userType == Admin)
-                            , Toggles.group "UserType"
-                            , Toggles.ripple
-                            , Toggles.onClick (UpdateUserType Admin)
-                            ]
-                            [ text "Administrator" ]
-                        , Toggles.radio Mdl [10,3] model.mdl
-                            [ Toggles.value (model.userType == NormalUser)
-                            , Toggles.group "UserType"
-                            , Toggles.ripple
-                            , Toggles.onClick (UpdateUserType NormalUser)
-                            ]
-                            [ text "Normal User" ]
-                        ])
-            , (isEditMode && isMe) ?
-                (inputRow "Password" <|
-                    Button.render Mdl [10,4] model.mdl
-                        [ Button.raised
-                        , Button.colored
-                        , Button.onClick ShowSetPasswordModal
-                        , cs "set-password-button"
-                        ]
-                        [ text "Set Password" ])
-            , (isEditMode && isAdmin && not isMe) ?
-                (inputRow "Reset Password" <|
-                    Button.render Mdl [10,5] model.mdl
-                        [ Button.raised
-                        , Button.colored
-                        , Button.onClick ShowResetPassword
-                        , cs "set-password-button"
-                        ]
-                        [ text "Reset Password" ])
-            ]
-        , div [ class "bottom-row" ]
-            [ Button.render Mdl [10,6] model.mdl
-                [ Button.raised
-                , Button.colored
-                , Button.disabled `when` (model.userName == "" || model.userFullName == "")
-                , Button.onClick (if isEditMode then DoEditUser else DoAddUser)
-                , cs "add-user-button"
-                ]
-                [ text (if isMe then "Save" else if isEditMode then "Update User" else "Add User") ]
-            , if model.userError
-                then div [ class "error" ] [ text "Username taken" ]
-                else div [ class "space-filler" ] []
-            , (isEditMode && not isMe) ?
-                div [ class "delete" ]
-                    [ Button.render Mdl [10,7] model.mdl
-                        [ Button.icon
-                        , Button.ripple
-                        , Button.onClick ShowRemoveUserModal
-                        ]
-                        [ Icon.i "delete"]
-                    ]
-            ]
-        ]
-
-resetPasswordModal : Model -> Html Msg
-resetPasswordModal model =
-  let
-    opts =
-        { title = "Reset Password"
-        , icon = "warning"
-        , message = "Are you sure you want to reset this users password?"
-        , onPerform = All [CloseTopModal, DoResetPassword]
-        , performText = "Reset"
         , onCancel = CloseTopModal
         , cancelText = "Cancel"
         , hidePerform = False
