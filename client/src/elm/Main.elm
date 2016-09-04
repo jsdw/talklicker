@@ -25,6 +25,8 @@ import Modals.Entry as EntryModal
 import Modals.User as UserModal
 import Html.Helpers exposing (..)
 
+import Dnd
+
 import Api
 import Api.Entries as Entries exposing (Entry, EntryType(..), EntryError(..))
 import Api.Users as Users exposing (User, UserType(..), LoginError(..))
@@ -39,6 +41,7 @@ initialModel =
 
     , tab = EntriesTab
     , entries = []
+    , entriesDnd = Dnd.model
     , users = Dict.empty
     , modals = []
     , error = ""
@@ -64,6 +67,7 @@ type alias Model =
 
     , tab : Tab
     , entries : List Entry
+    , entriesDnd : Dnd.Model
     , users : Dict String User
     , modals : List (TheModel -> Html Msg)
     , error : String
@@ -101,6 +105,8 @@ type Msg
     | UpdateCoreDetails CoreDetails
     | LogOut
     | DoLogout
+
+    | EntriesDnd Dnd.Msg
 
     -- login modal:
     | ShowLoginModal
@@ -145,6 +151,9 @@ update msg model = case logMsg msg of
         showModal logoutModal model ! []
     DoLogout ->
         { model | user = Nothing, tab = EntriesTab } ! [Task.perform (always Noop) (always Noop) Users.logout]
+
+    EntriesDnd msg ->
+        { model | entriesDnd = Dnd.update msg model.entriesDnd } ! []
 
     -- login modal:
     ShowLoginModal ->
@@ -345,7 +354,7 @@ view model =
             , div [ class "entries" ] <|
                 if model.entries == []
                 then [ div [ class "no-entries" ] [ text "No entries have been added yet." ] ]
-                else List.map (renderEntry model) model.entries
+                else [ Dnd.view model.entriesDnd EntriesDnd <| List.map (\e -> (e.id, renderEntry model e)) model.entries ]
             ]
 
     -- admin tab with list of users
@@ -564,7 +573,9 @@ main =
     , update = update
     , view = view
     , subscriptions = \model -> Sub.batch
-        [ ]
+        [
+            Sub.map EntriesDnd (Dnd.sub model.entriesDnd)
+        ]
     }
 
 init : (Model, Cmd Msg)
