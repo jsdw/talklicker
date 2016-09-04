@@ -1,0 +1,38 @@
+.dnd-items {
+
+    > .dnd-item {
+        position: relative;
+        // &.being-dragged {
+        //     opacity: 0.5;
+        // }
+    }
+
+    > .dnd-spacer {
+        height: 0px;
+        &.active {
+            height: 25px;
+        }
+    }
+
+    &.active {
+
+        > .dnd-item {
+            > .dnd-item-before {
+                position: absolute;
+                top: 0;
+                left: 0;
+                height: 50%;
+                width: 100%;
+            }
+            > .dnd-item-after {
+                position: absolute;
+                top: 50%;
+                left: 0;
+                height: 50%;
+                width: 100%;
+            }
+        }
+
+    }
+
+}
