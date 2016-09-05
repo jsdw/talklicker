@@ -2,14 +2,14 @@
 
     > .dnd-item {
         position: relative;
-        // &.being-dragged {
-        //     opacity: 0.5;
-        // }
+        &.being-dragged {
+            opacity: 0.5;
+        }
     }
 
     > .dnd-spacer {
         height: 0px;
-        &.active {
+        &.active:not(.near-dragged) {
             height: 25px;
         }
     }
