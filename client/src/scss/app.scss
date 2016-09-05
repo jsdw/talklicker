@@ -13,6 +13,87 @@ body, html {
 	flex-direction: column;
 }
 
+@mixin entryUserTitle {
+
+	font-weight: 600;
+	display: flex;
+	align-items: center;
+	margin-bottom: 0.5em;
+	font-size: 1.1em;
+
+	.text.link {
+		font-weight: 600;
+		color: #5c5eff;
+		text-decoration: underline;
+		cursor: pointer;
+	}
+
+	> i {
+		margin-right: 0.3em;
+	}
+
+}
+
+@mixin entry {
+	position: relative;
+	flex-shrink: 0;
+
+	width: 660px;
+	margin-bottom: 5px;
+	padding: 10px;
+	padding: 0.5em 1em;
+
+	background-color: white;
+	border-bottom: 1px solid rgb(209, 209, 209);
+	border-right: 1px solid rgb(248, 248, 248);
+	border-top: 1px solid rgb(248, 248, 248);
+
+	&.entry-talk {
+		border-left: 8px solid #4bb1c1;
+	}
+	&.entry-project {
+		border-left: 8px solid #63c519;
+	}
+
+	> .title {
+		@include entryUserTitle;
+	}
+
+	> .description {
+		//avoid hitting duration:
+		width: calc(100% - 35px);
+	}
+
+	> .user {
+		font-style: italic;
+		color: rgb(130, 130, 130);
+		font-size:90%;
+
+		//avoid hitting duration:
+		width: calc(100% - 35px);
+	}
+
+	> .duration {
+
+		position: absolute;
+		bottom: 10px;
+		right: 10px;
+
+		display: flex;
+		align-self: flex-end;
+
+		border-radius: 15px;
+		width: 32px;
+		height: 32px;
+
+		background-color: #e4e4e4;
+		color: #323133;
+
+		align-items: center;
+		justify-content: center;
+	}
+}
+
 //flex all the way down..
 body > .content {
 
@@ -20,6 +101,16 @@ body > .content {
 	width: 100%;
 	height: 100%;
 	@include flexColumn;
+
+	// this is the thing that's being dragged about in an overlay:
+	.dragging-entry {
+		pointer-events: none;
+		> .entry {
+			@include entry;
+			transform: scale(0.7) translateX(-50%) translateY(-50%);
+			box-shadow: 0px 11px 43px 3px rgba(0,0,0,0.35);
+		}
+	}
 
 	.top {
 
@@ -104,27 +195,6 @@ body > .content {
 			}
 		}
 
-		@mixin entryUserTitle {
-
-			font-weight: 600;
-			display: flex;
-			align-items: center;
-			margin-bottom: 0.5em;
-			font-size: 1.1em;
-
-			.text.link {
-				font-weight: 600;
-				color: #5c5eff;
-				text-decoration: underline;
-				cursor: pointer;
-			}
-
-			> i {
-				margin-right: 0.3em;
-			}
-
-		}
-
 		.entries-tab {
 
 			@include flexColumn;
@@ -142,63 +212,7 @@ body > .content {
 				// these are nested into dnd things, so looser with targeting:
 				.entry {
 					@include flexColumn;
-					position: relative;
-					flex-shrink: 0;
-
-					width: 660px;
-					margin-bottom: 5px;
-					padding: 10px;
-					padding: 0.5em 1em;
-
-					border-bottom: 1px solid rgb(209, 209, 209);
-					border-right: 1px solid rgb(248, 248, 248);
-					border-top: 1px solid rgb(248, 248, 248);
-
-					&.entry-talk {
-						border-left: 8px solid #4bb1c1;
-					}
-					&.entry-project {
-						border-left: 8px solid #63c519;
-					}
-
-					> .title {
-						@include entryUserTitle;
-					}
-
-					> .description {
-						//avoid hitting duration:
-						width: calc(100% - 35px);
-					}
-
-					> .user {
-						font-style: italic;
-						color: rgb(130, 130, 130);
-						font-size:90%;
-
-						//avoid hitting duration:
-						width: calc(100% - 35px);
-					}
-
-					> .duration {
-
-						position: absolute;
-						bottom: 10px;
-						right: 10px;
-
-						display: flex;
-						align-self: flex-end;
-
-						border-radius: 15px;
-						width: 32px;
-						height: 32px;
-
-						background-color: #e4e4e4;
-						color: #323133;
-
-						align-items: center;
-						justify-content: center;
-					}
-
+					@include entry;
 				}
 			}
 

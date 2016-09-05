@@ -152,8 +152,15 @@ update msg model = case logMsg msg of
     DoLogout ->
         { model | user = Nothing, tab = EntriesTab } ! [Task.perform (always Noop) (always Noop) Users.logout]
 
+    -- handle DND output:
     EntriesDnd msg ->
-        { model | entriesDnd = Dnd.update msg model.entriesDnd } ! []
+      let
+        (dnd, mAct) = Dnd.update msg model.entriesDnd
+        actedModel = case mAct of
+            Just (Dnd.MovedTo id (before, after)) -> moveEntryTo id before after model
+            Nothing -> model
+      in
+        { actedModel | entriesDnd = dnd } ! []
 
     -- login modal:
     ShowLoginModal ->
@@ -216,6 +223,22 @@ update msg model = case logMsg msg of
 
     Noop ->
         (model, Cmd.none)
+
+-- handle moving an entry given DND finish
+moveEntryTo : String -> Dnd.Position -> Dnd.Position -> Model -> Model
+moveEntryTo id before after model =
+  let
+    entrySingleton = List.filter (\e -> e.id == id) model.entries
+    entries = List.filter (\e -> e.id /= id) model.entries
+    moved entry = case (before, after) of
+        (Dnd.AtBeginning, _) -> entry :: entries
+        (_, Dnd.AtEnd)       -> entries ++ [entry]
+        (_, Dnd.AtId b)      -> List.foldr (\e out -> if e.id == b then entry :: e :: out else e :: out) [] entries
+        _                    -> Debug.crash ("impossible position "++toString (before,after))
+  in
+    case entrySingleton of
+        [entry] -> { model | entries = moved entry }
+        _ -> model -- entry not found
 
 -- handle updates to the userModal
 handleUserUpdate : UserModal.Msg -> Model -> (Model, Cmd Msg)
@@ -430,7 +453,27 @@ view model =
                 div [ class "main" ]
                     [ entriesTab ]
         , div [ class "modals" ] (List.map (\modalFunc -> modalFunc (TheModel model)) model.modals)
+        , if Dnd.beingDragged model.entriesDnd
+            then draggingEntry model
+            else text ""
         ]
+
+draggingEntry : Model -> Html Msg
+draggingEntry model =
+  let
+    draggedId = Dnd.draggedId model.entriesDnd
+    entry = case List.filter (\e -> e.id == draggedId) model.entries of
+        [e] -> renderEntry model e
+        _ -> text ""
+    pos = Dnd.position model.entriesDnd
+    css =
+        [ ("position","absolute")
+        , ("top", toString pos.y ++ "px")
+        , ("left", toString pos.x ++ "px") ]
+  in
+    div [ class "dragging-entry"
+        , style css ]
+        [ entry ]
 
 profileMenu : Model -> Html Msg
 profileMenu model =

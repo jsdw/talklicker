@@ -1,15 +1,35 @@
+//
+// custom styling based on DnD classes
+//
+.dnd-items:not(#a) {
+
+    > .dnd-item.being-dragged {
+        opacity: 0.3;
+    }
+
+    > .dnd-spacer {
+        &.active {
+            height: 40px;
+        }
+        &.near-dragged {
+            height: 0px;
+        }
+    }
+
+}
+
+//
+// Default DnD styling to make things work as expected:
+//
 .dnd-items {
 
     > .dnd-item {
         position: relative;
-        &.being-dragged {
-            opacity: 0.5;
-        }
     }
 
     > .dnd-spacer {
         height: 0px;
-        &.active:not(.near-dragged) {
+        &.active {
             height: 25px;
         }
     }

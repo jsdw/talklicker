@@ -1,4 +1,4 @@
-module Dnd exposing (Model, model, Msg, update, sub, view)
+module Dnd exposing (Model, model, draggedId, beingDragged, position, delta, Msg, Act(..), Position(..), update, sub, view)
 
 import Html.Events exposing (..)
 import Html.Attributes exposing (..)
@@ -13,7 +13,10 @@ import Json.Decode as JsonDec
 -- our DnD state
 --
 
-type alias Model =
+-- hide our model's internal state:
+type Model = Model TheModel
+
+type alias TheModel =
     { selectedId : Maybe String
     , dragPosition : Maybe DragPosition
     , dragInProgress : Bool
@@ -22,13 +25,27 @@ type alias Model =
     }
 
 model : Model
-model =
+model = Model
     { selectedId = Nothing
     , dragPosition = Nothing
     , dragInProgress = False
     , startXY = { x = 0, y = 0 }
     , currentXY = { x = 0, y = 0 }
     }
+
+draggedId : Model -> String
+draggedId (Model m) = case m.selectedId of
+    Nothing -> ""
+    Just i -> i
+
+beingDragged : Model -> Bool
+beingDragged (Model m) = m.dragInProgress
+
+position : Model -> Mouse.Position
+position (Model m) = m.currentXY
+
+delta : Model -> Mouse.Position
+delta (Model m) = { x = m.currentXY.x - m.startXY.x, y = m.currentXY.y - m.startXY.y }
 
 exceedsThreshold : Mouse.Position -> Mouse.Position -> Bool
 exceedsThreshold posA posB =
@@ -48,6 +65,9 @@ type Msg
     | DragMove Mouse.Position
     | DragComplete
 
+type Act
+    = MovedTo String DragPosition
+
 -- a tuple of the things we're between at present,
 -- which could be Ids or beginning/end of list.
 type alias DragPosition = (Position, Position)
@@ -57,22 +77,26 @@ type Position
     | AtId String
     | AtEnd
 
-update : Msg -> Model -> Model
-update msg model = case msg of
+update : Msg -> Model -> (Model, Maybe Act)
+update msg (Model model) = case msg of
     DragStart id pos ->
-        { model | selectedId = Just id, startXY = pos, currentXY = pos, dragInProgress = False }
+        { model | selectedId = Just id, startXY = pos, currentXY = pos, dragInProgress = False } !! Nothing
     DragOver mDragPos ->
-        { model | dragPosition = mDragPos }
+        { model | dragPosition = mDragPos } !! Nothing
     DragMove pos ->
-        { model | currentXY = pos, dragInProgress = if model.dragInProgress then True else exceedsThreshold model.startXY pos }
+        { model | currentXY = pos, dragInProgress = if model.dragInProgress then True else exceedsThreshold model.startXY pos } !! Nothing
     DragComplete ->
       let
-        selectedId = model.selectedId
-        dragPosition = model.dragPosition
+        act = case (model.selectedId, model.dragPosition) of
+            (Just id, Just pos) -> Just (MovedTo id pos)
+            _ -> Nothing
       in
-        cancelDrag model -- notify the outside world here and reset. no dragPosition? failed.
+        cancelDrag model !! act -- notify the outside world here and reset. no dragPosition? no notify.
 
-cancelDrag : Model -> Model
+(!!) : TheModel -> Maybe Act -> (Model, Maybe Act)
+(!!) model act = (Model model, act)
+
+cancelDrag : TheModel -> TheModel
 cancelDrag model =
     { model | selectedId = Nothing, dragPosition = Nothing, dragInProgress = False }
 
@@ -81,7 +105,7 @@ cancelDrag model =
 --
 
 sub : Model -> Sub Msg
-sub model = case model.selectedId of
+sub (Model model) = case model.selectedId of
     Nothing -> Sub.none
     Just _ -> Sub.batch
         [ Mouse.ups (always DragComplete)
@@ -94,7 +118,7 @@ sub model = case model.selectedId of
 --
 
 view : Model -> (Msg -> parentMsg) -> List (String, Html parentMsg) -> Html parentMsg
-view model pm items =
+view (Model model) pm items =
   let
     -- drag start occurs
     onDragStart id =
