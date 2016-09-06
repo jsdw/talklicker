@@ -47,8 +47,8 @@ routes = coreRoutes
 type CoreRoutes = Login :<|> Logout
 coreRoutes      = login :<|> logout
 
-type EntryRoutes = GetEntries :<|> GetEntry :<|> SetEntry :<|> SetEntryOrder :<|> AddEntry :<|> RemoveEntry
-entryRoutes      = getEntries :<|> getEntry :<|> setEntry :<|> setEntryOrder :<|> addEntry :<|> removeEntry
+type EntryRoutes = GetEntries :<|> GetEntry :<|> SetEntry :<|> AddEntry :<|> RemoveEntry :<|> SetEntryOrder
+entryRoutes      = getEntries :<|> getEntry :<|> setEntry :<|> addEntry :<|> removeEntry :<|> setEntryOrder
 
 type UserRoutes = GetCurrentUser :<|> GetUsers :<|> GetUser :<|> SetUser :<|> AddUser :<|> RemoveUser
 userRoutes      = getCurrentUser :<|> getUsers :<|> getUser :<|> setUser :<|> addUser :<|> removeUser
@@ -159,8 +159,9 @@ setEntry (Session _ sessUser) eId input = do
 --
 -- SET ENTRY ORDER
 --
+-- "order" twice due to https://github.com/haskell-servant/servant/issues/597
 
-type SetEntryOrder = HasSession :> "order" :> ReqBody '[JSON] [Id] :> Post '[JSON] [Id]
+type SetEntryOrder = HasSession :> "order" :> "order" :> ReqBody '[JSON] [Id] :> Post '[JSON] [Id]
 
 setEntryOrder :: UserSession -> [Id] -> Application [Id]
 setEntryOrder _ ids = do

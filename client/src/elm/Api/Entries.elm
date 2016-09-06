@@ -128,4 +128,4 @@ type alias EntryAddable a =
 --
 
 order : List String -> Task Error ()
-order ids = request Post ("entries" :> "order") (Just <| Enc.list <| List.map Enc.string ids) noResult
+order ids = request Post ("entries" :> "order" :> "order") (Just <| Enc.list <| List.map Enc.string ids) noResult
