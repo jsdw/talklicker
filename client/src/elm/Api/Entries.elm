@@ -1,4 +1,4 @@
-module Api.Entries exposing (get, set, remove, add, Entry, EntryError(..), EntrySettable, EntryAddable, EntryType(..))
+module Api.Entries exposing (get, set, remove, add, order, Entry, EntryError(..), EntrySettable, EntryAddable, EntryType(..))
 
 import Json.Encode as Enc exposing (Value, null)
 import Json.Decode as Dec exposing (Decoder, (:=))
@@ -56,14 +56,14 @@ toEntryType str =
 --
 
 set : EntrySettable a -> Task EntryError Entry
-set entry = 
+set entry =
     request Post ("entries" :> entry.id) (Just <| addEntryEncoder entry) entryDecoder
         `Task.onError` handleError
 
 handleError err = case err of
     ClientError 400 "BAD_NAME" -> Task.fail EntryBadName
     ClientError 400 "BAD_DESCRIPTION" -> Task.fail EntryBadDescription
-    ClientError 400 "BAD_DURATION" -> Task.fail EntryBadDuration            
+    ClientError 400 "BAD_DURATION" -> Task.fail EntryBadDuration
     err -> Task.fail (EntryBadOther err)
 
 entryTypeEncoder : EntryType -> Value
@@ -122,3 +122,10 @@ type alias EntryAddable a =
     , description : String
     , entryType : EntryType
     }
+
+--
+-- Set entry order (provide list of entry IDs and they will be reordered)
+--
+
+order : List String -> Task Error ()
+order ids = request Post ("entries" :> "order") (Just <| Enc.list <| List.map Enc.string ids) noResult

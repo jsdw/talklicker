@@ -27,6 +27,7 @@ executable talklicker
   build-depends:       base
                      , aeson
                      , data-default
+                     , servant
                      , servant-server
                      , warp
                      , text

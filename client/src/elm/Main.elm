@@ -156,11 +156,11 @@ update msg model = case logMsg msg of
     EntriesDnd msg ->
       let
         (dnd, mAct) = Dnd.update msg model.entriesDnd
-        actedModel = case mAct of
+        (actedModel, actedCmd) = case mAct of
             Just (Dnd.MovedTo id (before, after)) -> moveEntryTo id before after model
-            Nothing -> model
+            Nothing -> model ! []
       in
-        { actedModel | entriesDnd = dnd } ! []
+        { actedModel | entriesDnd = dnd } ! [ actedCmd ]
 
     -- login modal:
     ShowLoginModal ->
@@ -225,7 +225,7 @@ update msg model = case logMsg msg of
         (model, Cmd.none)
 
 -- handle moving an entry given DND finish
-moveEntryTo : String -> Dnd.Position -> Dnd.Position -> Model -> Model
+moveEntryTo : String -> Dnd.Position -> Dnd.Position -> Model -> (Model, Cmd Msg)
 moveEntryTo id before after model =
   let
     entrySingleton = List.filter (\e -> e.id == id) model.entries
@@ -237,8 +237,13 @@ moveEntryTo id before after model =
         _                    -> Debug.crash ("impossible position "++toString (before,after))
   in
     case entrySingleton of
-        [entry] -> { model | entries = moved entry }
-        _ -> model -- entry not found
+        [entry] ->
+          let
+            entries' = moved entry
+            orderApi = Task.perform (always Noop) (always Noop) (Entries.order (List.map .id entries'))
+          in
+            { model | entries = moved entry } ! [ orderApi ]
+        _ -> model ! [] -- entry not found
 
 -- handle updates to the userModal
 handleUserUpdate : UserModal.Msg -> Model -> (Model, Cmd Msg)
