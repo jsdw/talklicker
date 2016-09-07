@@ -60,6 +60,7 @@ set entry =
     request Post ("entries" :> entry.id) (Just <| addEntryEncoder entry) entryDecoder
         `Task.onError` handleError
 
+handleError : Error -> Task EntryError a
 handleError err = case err of
     ClientError 400 "BAD_NAME" -> Task.fail EntryBadName
     ClientError 400 "BAD_DESCRIPTION" -> Task.fail EntryBadDescription

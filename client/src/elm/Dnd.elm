@@ -5,8 +5,8 @@ import Html.Attributes exposing (..)
 import Html exposing (..)
 
 import Array
-
 import Mouse
+import Keyboard
 import Json.Decode as JsonDec
 
 --
@@ -64,6 +64,8 @@ type Msg
     | DragOver (Maybe DragPosition)
     | DragMove Mouse.Position
     | DragComplete
+    | DragCancel
+    | Noop
 
 type Act
     = MovedTo String DragPosition
@@ -92,6 +94,10 @@ update msg (Model model) = case msg of
             _ -> Nothing
       in
         cancelDrag model !! act -- notify the outside world here and reset. no dragPosition? no notify.
+    DragCancel ->
+        cancelDrag model !! Nothing
+    Noop ->
+        model !! Nothing
 
 (!!) : TheModel -> Maybe Act -> (Model, Maybe Act)
 (!!) model act = (Model model, act)
@@ -110,6 +116,7 @@ sub (Model model) = case model.selectedId of
     Just _ -> Sub.batch
         [ Mouse.ups (always DragComplete)
         , Mouse.moves DragMove
+        , Keyboard.downs (\code -> if code == 27 then DragCancel else Noop) -- listen for escape key to cancel drag
         ]
 
 --
