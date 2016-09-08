@@ -92,7 +92,7 @@ set username details =
         , ("pass", Enc.string ?= details.pass)
         , ("type", userTypeEncoder ?= details.userType) ]
   in
-    request Post ("users" :> username) (Just value) userDecoder
+    request Post ("users" :> "set" :> username) (Just value) userDecoder
 
 userTypeEncoder : UserType -> Value
 userTypeEncoder ty = Enc.string (fromUserType ty)
@@ -114,7 +114,7 @@ add details =
         , ("pass", Enc.string details.pass)
         , ("type", userTypeEncoder details.userType) ]
   in
-    request Post "users" (Just value) userDecoder
+    request Post ("users" :> "add") (Just value) userDecoder
 
 --
 -- Remove user

@@ -47,8 +47,8 @@ routes = coreRoutes
 type CoreRoutes = Login :<|> Logout
 coreRoutes      = login :<|> logout
 
-type EntryRoutes = GetEntries :<|> GetEntry :<|> SetEntry :<|> AddEntry :<|> RemoveEntry :<|> SetEntryOrder
-entryRoutes      = getEntries :<|> getEntry :<|> setEntry :<|> addEntry :<|> removeEntry :<|> setEntryOrder
+type EntryRoutes = GetEntries :<|> GetEntry :<|> AddEntry :<|> RemoveEntry :<|> SetEntryOrder :<|> SetEntry
+entryRoutes      = getEntries :<|> getEntry :<|> addEntry :<|> removeEntry :<|> setEntryOrder :<|> setEntry
 
 type UserRoutes = GetCurrentUser :<|> GetUsers :<|> GetUser :<|> SetUser :<|> AddUser :<|> RemoveUser
 userRoutes      = getCurrentUser :<|> getUsers :<|> getUser :<|> setUser :<|> addUser :<|> removeUser
@@ -125,7 +125,7 @@ getEntry eId = getEntryOr eId (throwError err404)
 -- SET ONE ENTRY
 --
 
-type SetEntry = HasSession :> Capture "entryId" Id :> ReqBody '[JSON] EntryInput :> Post '[JSON] Entry
+type SetEntry = HasSession :> "set" :> Capture "entryId" Id :> ReqBody '[JSON] EntryInput :> Post '[JSON] Entry
 
 setEntry :: UserSession -> Id -> EntryInput -> Application Entry
 setEntry (Session _ sessUser) eId input = do
@@ -159,9 +159,8 @@ setEntry (Session _ sessUser) eId input = do
 --
 -- SET ENTRY ORDER
 --
--- "order" twice due to https://github.com/haskell-servant/servant/issues/597
 
-type SetEntryOrder = HasSession :> "order" :> "order" :> ReqBody '[JSON] [Id] :> Post '[JSON] [Id]
+type SetEntryOrder = HasSession :> "order" :> ReqBody '[JSON] [Id] :> Post '[JSON] [Id]
 
 setEntryOrder :: UserSession -> [Id] -> Application [Id]
 setEntryOrder _ ids = do
@@ -176,7 +175,7 @@ setEntryOrder _ ids = do
 -- ADD ENTRY
 --
 
-type AddEntry = HasSession :> ReqBody '[JSON] AddEntryInput :> Post '[JSON] Entry
+type AddEntry = HasSession :> "add" :> ReqBody '[JSON] AddEntryInput :> Post '[JSON] Entry
 
 addEntry :: UserSession -> AddEntryInput -> Application Entry
 addEntry (Session _ sessUser) input = do
@@ -267,7 +266,7 @@ getUser name = getUserOr name (throwError err404) >>= return . toUserOutput
 -- SET ONE USER INFO
 --
 
-type SetUser = HasSession :> Capture "username" String :> ReqBody '[JSON] UserInput :> Post '[JSON] UserOutput
+type SetUser = HasSession :> "set" :> Capture "username" String :> ReqBody '[JSON] UserInput :> Post '[JSON] UserOutput
 
 setUser :: UserSession -> String -> UserInput -> Application UserOutput
 setUser (Session _ sessUser) name input = do
@@ -301,7 +300,7 @@ setUser (Session _ sessUser) name input = do
 -- ADD USER
 --
 
-type AddUser = IsAdmin :> ReqBody '[JSON] User :> Post '[JSON] UserOutput
+type AddUser = IsAdmin :> "add" :> ReqBody '[JSON] User :> Post '[JSON] UserOutput
 
 addUser :: AdminUserSession -> User -> Application UserOutput
 addUser _ input = do
@@ -360,7 +359,7 @@ getDay dId = getDayOr dId (throwError err404)
 -- SET DAY
 --
 
-type SetDay = IsAdmin :> Capture "dayId" Id :> ReqBody '[JSON] DayInput :> Post '[JSON] Day
+type SetDay = IsAdmin :> "set" :> Capture "dayId" Id :> ReqBody '[JSON] DayInput :> Post '[JSON] Day
 
 setDay :: AdminUserSession -> Id -> DayInput -> Application Day
 setDay _ dId input = do
@@ -388,7 +387,7 @@ setDay _ dId input = do
 -- ADD DAY
 --
 
-type AddDay = IsAdmin :> ReqBody '[JSON] AddDayInput :> Post '[JSON] Day
+type AddDay = IsAdmin :> "add" :> ReqBody '[JSON] AddDayInput :> Post '[JSON] Day
 
 addDay :: AdminUserSession -> AddDayInput -> Application Day
 addDay _ input = do

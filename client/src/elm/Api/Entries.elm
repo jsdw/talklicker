@@ -57,7 +57,7 @@ toEntryType str =
 
 set : EntrySettable a -> Task EntryError Entry
 set entry =
-    request Post ("entries" :> entry.id) (Just <| addEntryEncoder entry) entryDecoder
+    request Post ("entries" :> "set" :> entry.id) (Just <| addEntryEncoder entry) entryDecoder
         `Task.onError` handleError
 
 handleError : Error -> Task EntryError a
@@ -103,7 +103,7 @@ remove id = request Delete ("entries" :> id) Nothing noResult
 --
 
 add : EntryAddable a -> Task EntryError Entry
-add entry = request Post "entries" (Just <| addEntryEncoder entry) entryDecoder
+add entry = request Post ("entries" :> "add") (Just <| addEntryEncoder entry) entryDecoder
     `Task.onError` handleError
 
 addEntryEncoder : EntryAddable a -> Value
@@ -129,4 +129,4 @@ type alias EntryAddable a =
 --
 
 order : List String -> Task Error ()
-order ids = request Post ("entries" :> "order" :> "order") (Just <| Enc.list <| List.map Enc.string ids) noResult
+order ids = request Post ("entries" :> "order") (Just <| Enc.list <| List.map Enc.string ids) noResult
