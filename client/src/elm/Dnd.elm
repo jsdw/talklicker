@@ -143,6 +143,9 @@ view (Model model) pm items =
     -- wrap a list item so that we start drag onmousedown and react to drops.
     toDndItem lastPos (id,html) nextPos =
       let
+        mDragId = Maybe.map AtId model.selectedId
+        isAboveDragged = Just nextPos == mDragId
+        isBelowDragged = Just lastPos == mDragId
         isBeingDragged = Just id == model.selectedId
         el =
             div [ class ("dnd-item" ++ if isBeingDragged && model.dragInProgress then " being-dragged" else "")
@@ -153,10 +156,10 @@ view (Model model) pm items =
                 -- and otherwise keeping out of the way. Use them to figure out whether we're dragging above or
                 -- below the current thing:
                 , div [ class "dnd-item-before"
-                    , onDragOver (if isBeingDragged then Nothing else Just (lastPos, AtId id))
+                    , onDragOver (if isBeingDragged || isBelowDragged then Nothing else Just (lastPos, AtId id))
                     ] []
                 , div [ class "dnd-item-after"
-                    , onDragOver (if isBeingDragged then Nothing else Just (AtId id, nextPos))
+                    , onDragOver (if isBeingDragged || isAboveDragged then Nothing else Just (AtId id, nextPos))
                     ] []
                 ]
       in
@@ -166,12 +169,16 @@ view (Model model) pm items =
     toDndSpacer ((a,b) as dragPosition) =
       let
         mDragId = Maybe.map AtId model.selectedId
-        isNearDragged = Just a == mDragId || Just b == mDragId
+        isAboveDragged = Just b == mDragId
+        isBelowDragged = Just a == mDragId
+        isNearDragged = isAboveDragged || isBelowDragged
         el =
             div [ class
                     (  "dnd-spacer"
-                    ++ (if model.dragPosition == Just dragPosition then " active" else "")
+                    ++ (if model.dragPosition == Just dragPosition && model.dragInProgress then " active" else "")
                     ++ (if isNearDragged then " near-dragged" else "")
+                    ++ (if isAboveDragged then " above" else "")
+                    ++ (if isBelowDragged then " below" else "")
                     )
                 , onDragOver (Just dragPosition)
                 ] []

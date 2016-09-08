@@ -4,15 +4,14 @@
 .dnd-items:not(#a) {
 
     > .dnd-item.being-dragged {
-        opacity: 0.3;
+        height: 0px;
+        visibility: hidden;
     }
 
     > .dnd-spacer {
         &.active {
-            height: 40px;
-        }
-        &.near-dragged {
-            height: 0px;
+            height: 50px;
+            &.near-dragged { height: 0px; }
         }
     }
 
