@@ -230,10 +230,13 @@ moveEntryTo id before after model =
   let
     entrySingleton = List.filter (\e -> e.id == id) model.entries
     entries = List.filter (\e -> e.id /= id) model.entries
+    tryAddBeforeId entry id =
+      let newList = List.foldr (\e out -> if e.id == id then entry :: e :: out else e :: out) [] entries
+      in if List.length newList /= List.length entries + 1 then model.entries else newList
     moved entry = case (before, after) of
         (Dnd.AtBeginning, _) -> entry :: entries
         (_, Dnd.AtEnd)       -> entries ++ [entry]
-        (_, Dnd.AtId b)      -> List.foldr (\e out -> if e.id == b then entry :: e :: out else e :: out) [] entries
+        (_, Dnd.AtId b)      -> tryAddBeforeId entry b
         _                    -> Debug.crash ("impossible position "++toString (before,after))
   in
     case entrySingleton of
@@ -242,7 +245,7 @@ moveEntryTo id before after model =
             entries' = moved entry
             orderApi = Task.perform (always Noop) (always Noop) (Entries.order (List.map .id entries'))
           in
-            { model | entries = moved entry } ! [ orderApi ]
+            { model | entries = entries' } ! [ orderApi ]
         _ -> model ! [] -- entry not found
 
 -- handle updates to the userModal
