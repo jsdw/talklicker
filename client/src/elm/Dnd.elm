@@ -8,6 +8,7 @@ import Array
 import Mouse
 import Keyboard
 import Json.Decode as JsonDec
+import Html.Keyed as Keyed
 
 --
 -- our DnD state
@@ -139,52 +140,44 @@ view (Model model) pm items =
             "mouseenter"
             { defaultOptions | preventDefault = True }
             (JsonDec.succeed (pm <| DragOver mDragPos))
-    -- this event finishes the drag successfully when called:
-    completeOnMouseUp =
-        onWithOptions
-            "mouseup"
-            { defaultOptions | stopPropagation = True, preventDefault = True }
-            (JsonDec.succeed (pm DragComplete))
-    -- are we performing a drag at the mo?
-    isDrag = case model.selectedId of
-        Just _  -> True
-        Nothing -> False
     -- wrap a list item so that we start drag onmousedown and react to drops.
     toDndItem lastPos (id,html) nextPos =
       let
         isBeingDragged = Just id == model.selectedId
+        el =
+            div [ class ("dnd-item" ++ if isBeingDragged && model.dragInProgress then " being-dragged" else "")
+                , onDragStart id
+                ]
+                [ html
+                -- these will live above the element, covering top half and bottom half when drag is in porogress
+                -- and otherwise keeping out of the way. Use them to figure out whether we're dragging above or
+                -- below the current thing:
+                , div [ class "dnd-item-before"
+                    , onDragOver (if isBeingDragged then Nothing else Just (lastPos, AtId id))
+                    ] []
+                , div [ class "dnd-item-after"
+                    , onDragOver (if isBeingDragged then Nothing else Just (AtId id, nextPos))
+                    ] []
+                ]
       in
-        div [ class ("dnd-item" ++ if isBeingDragged && model.dragInProgress then " being-dragged" else "")
-            , onDragStart id
-            ]
-            [ html
-            -- these will live above the element, covering top half and bottom half when drag is in porogress
-            -- and otherwise keeping out of the way. Use them to figure out whether we're dragging above or
-            -- below the current thing:
-            , div [ class "dnd-item-before"
-                  , onDragOver (if isBeingDragged then Nothing else Just (lastPos, AtId id))
-                  , completeOnMouseUp
-                  ] []
-            , div [ class "dnd-item-after"
-                  , onDragOver (if isBeingDragged then Nothing else Just (AtId id, nextPos))
-                  , completeOnMouseUp
-                  ] []
-            ]
+        (id, el)
     -- these live between each item (and at the beginning and end) and expand when the drag is in their
     -- region or collapse otherwise, to make space for the drop.
     toDndSpacer ((a,b) as dragPosition) =
       let
         mDragId = Maybe.map AtId model.selectedId
         isNearDragged = Just a == mDragId || Just b == mDragId
+        el =
+            div [ class
+                    (  "dnd-spacer"
+                    ++ (if model.dragPosition == Just dragPosition then " active" else "")
+                    ++ (if isNearDragged then " near-dragged" else "")
+                    )
+                , onDragOver (Just dragPosition)
+                ] []
       in
-        div [ class
-                (  "dnd-spacer"
-                ++ (if model.dragPosition == Just dragPosition then " active" else "")
-                ++ (if isNearDragged then " near-dragged" else "")
-                )
-            , onDragOver (Just dragPosition)
-            , completeOnMouseUp
-            ] []
+        (toString a ++ toString b, el)
+
     -- run through our items, inserting spacers between items, at the beginning and end,
     -- and wrapping items into dndItems:
     dndItems itemArr =
@@ -205,7 +198,8 @@ view (Model model) pm items =
             True  -> [toDndSpacer (AtBeginning, AtEnd)]
   in
     -- our output is a dnd-items div wrapping spacer-separated draggable items:
-    div [ class ("dnd-items" ++ if isDrag then " active" else "")
+    Keyed.node "div"
+        [ class ("dnd-items" ++ if model.dragInProgress then " active" else "")
         , onMouseLeave (pm (DragOver Nothing))
         ]
         (dndItems (Array.fromList items))
