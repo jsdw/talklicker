@@ -7,6 +7,8 @@ import Debug
 import Dict exposing (Dict)
 import List
 import String
+--import Process
+--import Time
 
 import Material
 --import Material.Scheme
@@ -146,7 +148,8 @@ update msg model = case logMsg msg of
     ApiError error ->
         { model | loading = False, error = toString error } ! []
     UpdateCoreDetails core ->
-        showSetPasswordIfNeeded { model | loading = False, user = core.currentUser, entries = core.entries, users = core.users } ! []
+        showSetPasswordIfNeeded { model | loading = False, user = core.currentUser, entries = core.entries, users = core.users }
+            ! [] -- [ Task.perform ApiError UpdateCoreDetails <| Process.sleep (30 * Time.second) `Task.andThen` \_ -> getEverything ]
     LogOut ->
         showModal logoutModal model ! []
     DoLogout ->
