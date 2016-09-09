@@ -234,16 +234,15 @@ moveEntryTo id before after model =
       let newList = List.foldr (\e out -> if e.id == id then entry :: e :: out else e :: out) [] entries
       in if List.length newList /= List.length entries + 1 then model.entries else newList
     moved entry = case (before, after) of
-        (Dnd.AtBeginning, _) -> entry :: entries
-        (_, Dnd.AtEnd)       -> entries ++ [entry]
-        (_, Dnd.AtId b)      -> tryAddBeforeId entry b
-        _                    -> Debug.crash ("impossible position "++toString (before,after))
+        (_, Dnd.AtEnd)  -> (entries ++ [entry], Entries.AtEnd)
+        (_, Dnd.AtId b) -> (tryAddBeforeId entry b, Entries.AtBefore b)
+        _               -> Debug.crash ("impossible position "++toString (before,after))
   in
     case entrySingleton of
         [entry] ->
           let
-            entries' = moved entry
-            orderApi = Task.perform (always Noop) (always Noop) (Entries.order (List.map .id entries'))
+            (entries', ePos) = moved entry
+            orderApi = Task.perform (always Noop) (always Noop) (Entries.move id ePos)
           in
             { model | entries = entries' } ! [ orderApi ]
         _ -> model ! [] -- entry not found
@@ -385,7 +384,9 @@ view model =
             , div [ class "entries" ] <|
                 if model.entries == []
                 then [ div [ class "no-entries" ] [ text "No entries have been added yet." ] ]
-                else [ Dnd.view model.entriesDnd EntriesDnd <| List.map (\e -> (e.id, renderEntry model e)) model.entries ]
+                else if isLoggedIn
+                    then [ Dnd.view model.entriesDnd EntriesDnd <| List.map (\e -> (e.id, renderEntry model e)) model.entries ]
+                    else List.map (renderEntry model) model.entries
             ]
 
     -- admin tab with list of users

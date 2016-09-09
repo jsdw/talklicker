@@ -1,4 +1,4 @@
-module Api.Entries exposing (get, set, remove, add, order, Entry, EntryError(..), EntrySettable, EntryAddable, EntryType(..))
+module Api.Entries exposing (get, set, remove, add, move, order, Entry, EntryError(..), EntryPosition(..), EntrySettable, EntryAddable, EntryType(..))
 
 import Json.Encode as Enc exposing (Value, null)
 import Json.Decode as Dec exposing (Decoder, (:=))
@@ -127,6 +127,18 @@ type alias EntryAddable a =
 --
 -- Set entry order (provide list of entry IDs and they will be reordered)
 --
+
+type EntryPosition
+    = AtBefore String
+    | AtEnd
+
+posToString : EntryPosition -> String
+posToString pos = case pos of
+    AtBefore s -> s
+    AtEnd -> "end"
+
+move : String -> EntryPosition -> Task Error ()
+move id pos = request Post ("entries" :> "move" :> id :> "before" :> posToString pos) Nothing noResult
 
 order : List String -> Task Error ()
 order ids = request Post ("entries" :> "order") (Just <| Enc.list <| List.map Enc.string ids) noResult

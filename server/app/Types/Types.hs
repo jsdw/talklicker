@@ -15,6 +15,7 @@ module Types.Types (
 
     AddEntryInput(..),
     EntryInput(..),
+    EntryPosition(..),
     UserInput(..),
     AddDayInput(..),
     DayInput(..),
@@ -133,6 +134,13 @@ data EntryInput = EntryInput
     } deriving (Show, Eq, Generic)
 
 instance FromJSON EntryInput where parseJSON = fromPrefix "ei"
+
+data EntryPosition
+    = AtBefore Id
+    | AtEnd
+
+instance FromHttpApiData EntryPosition where
+    parseUrlPiece text = Right $ if text == "end" then AtEnd else AtBefore (Id $ Text.unpack text)
 
 data UserInput = UserInput
     { uiFullName :: Maybe String

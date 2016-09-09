@@ -47,8 +47,8 @@ routes = coreRoutes
 type CoreRoutes = Login :<|> Logout
 coreRoutes      = login :<|> logout
 
-type EntryRoutes = GetEntries :<|> GetEntry :<|> AddEntry :<|> RemoveEntry :<|> SetEntryOrder :<|> SetEntry
-entryRoutes      = getEntries :<|> getEntry :<|> addEntry :<|> removeEntry :<|> setEntryOrder :<|> setEntry
+type EntryRoutes = GetEntries :<|> GetEntry :<|> AddEntry :<|> RemoveEntry :<|> SetEntryOrder :<|> SetEntry :<|> MoveEntryTo
+entryRoutes      = getEntries :<|> getEntry :<|> addEntry :<|> removeEntry :<|> setEntryOrder :<|> setEntry :<|> moveEntryTo
 
 type UserRoutes = GetCurrentUser :<|> GetUsers :<|> GetUser :<|> SetUser :<|> AddUser :<|> RemoveUser
 userRoutes      = getCurrentUser :<|> getUsers :<|> getUser :<|> setUser :<|> addUser :<|> removeUser
@@ -170,6 +170,31 @@ setEntryOrder _ ids = do
         in (e,e)
 
     return $ fmap entryId $ allEntries newEverything
+
+--
+-- Move entry to new location before another (less chance of races than above)
+--
+
+type MoveEntryTo = HasSession :> "move" :> Capture "entryId" Id :> "before" :> Capture "entryPosition" EntryPosition :> Post '[JSON] ()
+
+moveEntryTo :: UserSession -> Id -> EntryPosition -> Application ()
+moveEntryTo _ eId newPosition = do
+
+    let doMove entries =
+          let
+            (entrySingleton, rest) = List.partition ((== eId) . entryId) entries
+            putBefore nextId entry e out = if entryId e == nextId then entry : e : out else e : out
+            newEntries entry = case newPosition of
+                AtEnd -> rest ++ [entry]
+                AtBefore nextId -> foldr (putBefore nextId entry) [] rest
+          in
+            case entrySingleton of
+                [] -> entries -- entry not found
+                entry : _ -> let n = newEntries entry in if length n /= length entries then entries else n
+
+    modifyDb $ \everything ->
+        let e = over allEntriesL doMove everything
+        in (e,())
 
 --
 -- ADD ENTRY
