@@ -53,5 +53,7 @@ tryReadFileToMvar fileName mv = liftIO $ do
             Just c  -> void (swapMVar mv c)
             Nothing -> error "JSON file for DB doesn't match expected schema; quitting."
 
+-- write out to file. Mask async exceptions incase one is raised midway through save.
+-- block the MVar until save complete (and handle therefore is reclaimed)
 writeMVarToFile :: (MonadIO m, ToJSON v) => String -> MVar v -> m ()
-writeMVarToFile fileName mv = liftIO $ withMVar mv $ \curVal -> BL.writeFile fileName (encode curVal)
+writeMVarToFile fileName mv = liftIO $ withMVarMasked mv $ \curVal -> BL.writeFile fileName (encode curVal)
