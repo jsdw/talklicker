@@ -54,6 +54,4 @@ tryReadFileToMvar fileName mv = liftIO $ do
             Nothing -> error "JSON file for DB doesn't match expected schema; quitting."
 
 writeMVarToFile :: (MonadIO m, ToJSON v) => String -> MVar v -> m ()
-writeMVarToFile fileName mv = liftIO $ do
-    curVal <- readMVar mv
-    B.writeFile fileName $ BL.toStrict $ encode curVal
+writeMVarToFile fileName mv = liftIO $ withMVar mv $ \curVal -> BL.writeFile fileName (encode curVal)
