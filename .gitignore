@@ -2,3 +2,6 @@ server/.stack-work
 client/build
 client/elm-stuff
 client/node_modules
+
+# only keep in git the "demo" version in server. ignore this incase it's used non-demo:
+talklicker.json
