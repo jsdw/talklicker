@@ -4,7 +4,8 @@ import Prelude hiding (init, read)
 import Control.Concurrent
 import Control.Exception
 
-import qualified Data.ByteString.Lazy.Char8 as BL
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString as B
 
 import Data.Aeson (FromJSON, ToJSON, encode, decode)
 import Data.Default (Default, def)
@@ -47,7 +48,7 @@ tryReadFileToMvar fileName mv = liftIO $ do
             return ()
         | otherwise = throwIO e
     tryInitialRead = do
-        file <- BL.readFile fileName
+        file <- fmap BL.fromStrict (B.readFile fileName)
         case decode file of
             Just c  -> void (swapMVar mv c)
             Nothing -> error "JSON file for DB doesn't match expected schema; quitting."
@@ -55,4 +56,4 @@ tryReadFileToMvar fileName mv = liftIO $ do
 writeMVarToFile :: (MonadIO m, ToJSON v) => String -> MVar v -> m ()
 writeMVarToFile fileName mv = liftIO $ do
     curVal <- readMVar mv
-    BL.writeFile fileName (encode curVal)
+    B.writeFile fileName $ BL.toStrict $ encode curVal
