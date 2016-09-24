@@ -389,17 +389,23 @@ type SetDay = IsAdmin :> "set" :> Capture "dayId" Id :> ReqBody '[JSON] DayInput
 setDay :: AdminUserSession -> Id -> DayInput -> Application Day
 setDay _ dId input = do
 
+    currTime <- getTimeMillis
+
     let mEntryIds = diEntries input
         update day = day
-            & dayTitleL  ~? diTitle input
-            & dayDateL   ~? diDate input
-            & dayEntriesL ~? mEntryIds
+            & dayTitleL       ~? diTitle input
+            & dayDescriptionL ~? diDescription input
+            & dayEntriesL     ~? mEntryIds
+            & dayModifiedL    .~ currTime
 
     entriesExist <- case mEntryIds of
         Nothing -> return True
         Just eIds -> doEntriesExist eIds
 
-    throwIf (not entriesExist) err400
+    let trueForJust cond mVal = if mVal == Nothing then True else fmap cond mVal == Just True
+    throwIf (not entriesExist) err400{ errReasonPhrase = "ENTRIES_NOT_FOUND" }
+    throwIf (null `trueForJust` (diTitle input)) err400{ errReasonPhrase = "BAD_TITLE" }
+    throwIf (null `trueForJust` (diDescription input)) err400{ errReasonPhrase = "BAD_DESCRIPTION" }
 
     mDay <- modifyItems allDaysL $ \day ->
         if dayId day == dId then Just (update day) else Nothing
@@ -420,16 +426,21 @@ addDay _ input = do
     let entryIds = addDayEntries input
 
     entriesExist <- doEntriesExist entryIds
-    throwIf (not entriesExist) err400
+    throwIf (not entriesExist) err400{ errReasonPhrase = "ENTRIES_NOT_FOUND" }
+    throwIf (null (addDayTitle input)) err400{ errReasonPhrase = "BAD_TITLE" }
+    throwIf (null (addDayDescription input)) err400{ errReasonPhrase = "BAD_DESCRIPTION" }
 
+    currTime <- getTimeMillis
     newId <- Id <$> Id.generate
     mItem <- getItem allDaysL (\d -> dayId d == newId)
 
     let newDay = Day
-            { dayId = newId
-            , dayTitle = addDayTitle input
-            , dayDate = addDayDate input
-            , dayEntries = entryIds
+            { dayId          = newId
+            , dayTitle       = addDayTitle input
+            , dayDescription = addDayDescription input
+            , dayEntries     = entryIds
+            , dayCreated     = currTime
+            , dayModified    = currTime
             }
 
     case mItem of

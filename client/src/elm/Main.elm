@@ -25,6 +25,7 @@ import Material.Tabs as Tabs
 
 import Modals
 import Modals.Entry as EntryModal
+import Modals.Day as DayModal
 import Modals.User as UserModal
 import Html.Helpers exposing (..)
 
@@ -33,6 +34,7 @@ import Dnd
 import Api
 import Api.Entries as Entries exposing (Entry, EntryType(..), EntryError(..))
 import Api.Users as Users exposing (User, UserType(..), LoginError(..))
+import Api.Days as Days exposing (Day)
 
 --
 -- Model
@@ -45,6 +47,7 @@ initialModel =
 
     , tab = EntriesTab
     , entries = []
+    , days = []
     , entriesDnd = Dnd.model
     , users = Dict.empty
     , modals = []
@@ -63,6 +66,9 @@ initialModel =
     -- entry stuff for add/edit:
     , entryModal = EntryModal.model
 
+    -- day stuff:
+    , dayModal = DayModal.model
+
     , mdl = Material.model
     }
 
@@ -72,6 +78,7 @@ type alias Model =
 
     , tab : Tab
     , entries : List Entry
+    , days : List Day
     , entriesDnd : Dnd.Model
     , users : Dict String User
     , modals : List (TheModel -> Html Msg)
@@ -89,6 +96,9 @@ type alias Model =
 
     -- entry stuff for add/edit:
     , entryModal : EntryModal.Model
+
+    -- day stuff:
+    , dayModal : DayModal.Model
 
     , mdl : Material.Model
 
@@ -136,6 +146,11 @@ type Msg
     | ShowEditEntryModal Entry
     | EntryModal EntryModal.Msg
 
+    -- add/edit/remove day:
+    | ShowAddDayModal
+    | ShowEditDayModal Day
+    | DayModal DayModal.Msg
+
     -- perform several actions at once
     | All (List Msg)
 
@@ -154,7 +169,7 @@ update msg model = case logMsg msg of
     ApiError error ->
         { model | loading = False, error = toString error } ! []
     UpdateCoreDetails core ->
-        showSetPasswordIfNeeded { model | loading = False, user = core.currentUser, entries = core.entries, users = core.users }
+        showSetPasswordIfNeeded { model | loading = False, user = core.currentUser, entries = core.entries, users = core.users, days = core.days }
             ! [] -- [ Task.perform ApiError UpdateCoreDetails <| Process.sleep (30 * Time.second) `Task.andThen` \_ -> getEverything ]
     LogOut ->
         showModal logoutModal model ! []
@@ -218,6 +233,14 @@ update msg model = case logMsg msg of
 
     CloseTopModal ->
         closeTopModal model ! []
+
+    -- add/edit day modals:
+    ShowAddDayModal ->
+        showModal (DayModal.addModal .dayModal DayModal) { model | dayModal = DayModal.prepareForAdd model.dayModal } ! []
+    ShowEditDayModal day ->
+        showModal (DayModal.editModal .dayModal DayModal) { model | dayModal = DayModal.prepareForEdit day model.dayModal } ! []
+    DayModal msg ->
+        handleDayUpdate msg model
 
     -- perform several actions eg cloing modal and logging in.
     -- done one after the other.
@@ -303,6 +326,24 @@ handleEntryUpdate msg model =
   in
     { actedModel | entryModal = entryModal' } ! [Cmd.map EntryModal cmd]
 
+handleDayUpdate : DayModal.Msg -> Model -> (Model, Cmd Msg)
+handleDayUpdate msg model =
+  let
+    (dayModal', act, cmd) = DayModal.update msg model.dayModal
+    actedModel = case act of
+        Just (DayModal.Added day) ->
+            closeTopModal { model | days = model.days ++ [day] }
+        Just (DayModal.Updated day) ->
+            closeTopModal { model | days = List.map (\d -> if d.id == day.id then day else d) model.days }
+        Just (DayModal.Removed dayId) ->
+            closeTopModal { model | days = List.filter (\d -> d.id /= dayId) model.days }
+        Just DayModal.CloseMe ->
+            closeTopModal model
+        Nothing ->
+            model
+  in
+    { actedModel | dayModal = dayModal' } ! [Cmd.map DayModal cmd]
+
 -- logs Msg's but hides sensitive information on a case by case:
 logMsg : Msg -> Msg
 logMsg msg =
@@ -386,7 +427,15 @@ view model =
         div [ class "entries-tab" ]
             [ isLoggedIn ?
                 div [ class "add-entry-area" ]
-                    [ Button.render Mdl [0,2] model.mdl
+                    [ model.isAdminMode ?
+                        Button.render Mdl [0,2] model.mdl
+                            [ Button.raised
+                            , Button.colored
+                            , Button.ripple
+                            , Button.onClick ShowAddDayModal
+                            ]
+                            [ text "Add Day"]
+                    , Button.render Mdl [0,2] model.mdl
                         [ Button.raised
                         , Button.colored
                         , Button.ripple
@@ -648,7 +697,7 @@ init : (Model, Cmd Msg)
 init = (initialModel, updateEverything)
 
 type alias CoreDetails =
-    { currentUser : Maybe User, entries : List Entry, users : Dict String User }
+    { currentUser : Maybe User, entries : List Entry, users : Dict String User, days : List Day }
 
 updateEverything : Cmd Msg
 updateEverything = Task.perform ApiError UpdateCoreDetails getEverything
@@ -656,7 +705,11 @@ updateEverything = Task.perform ApiError UpdateCoreDetails getEverything
 getEverything : Task Api.Error CoreDetails
 getEverything =
   let
-    fn = \curr entries users ->
-        { currentUser = curr, entries = entries, users = users }
+    fn = \curr entries users days ->
+        { currentUser = curr, entries = entries, users = users, days = days }
   in
-    Task.map3 fn Users.current Entries.get Users.get
+    Task.map4 fn
+        Users.current
+        Entries.get
+        Users.get
+        Days.get
