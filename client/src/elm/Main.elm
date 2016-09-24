@@ -24,6 +24,7 @@ import Material.Tabs as Tabs
 
 import Modals
 import Modals.Entry as EntryModal
+import Modals.Day as DayModal
 import Modals.User as UserModal
 import Html.Helpers exposing (..)
 
@@ -64,6 +65,9 @@ initialModel =
     -- entry stuff for add/edit:
     , entryModal = EntryModal.model
 
+    -- day stuff:
+    , dayModal = DayModal.model
+
     , mdl = Material.model
     }
 
@@ -91,6 +95,9 @@ type alias Model =
 
     -- entry stuff for add/edit:
     , entryModal : EntryModal.Model
+
+    -- day stuff:
+    , dayModal : DayModal.Model
 
     , mdl : Material.Model
 
@@ -137,6 +144,11 @@ type Msg
     | ShowAddEntryModal
     | ShowEditEntryModal Entry
     | EntryModal EntryModal.Msg
+
+    -- add/edit/remove day:
+    | ShowAddDayModal
+    | ShowEditDayModal Day
+    | DayModal DayModal.Msg
 
     -- perform several actions at once
     | All (List Msg)
@@ -220,6 +232,14 @@ update msg model = case logMsg msg of
 
     CloseTopModal ->
         closeTopModal model ! []
+
+    -- add/edit day modals:
+    ShowAddDayModal ->
+        showModal (DayModal.addModal .dayModal DayModal) { model | dayModal = DayModal.prepareForAdd model.dayModal } ! []
+    ShowEditDayModal day ->
+        showModal (DayModal.editModal .dayModal DayModal) { model | dayModal = DayModal.prepareForEdit day model.dayModal } ! []
+    DayModal msg ->
+        handleDayUpdate msg model
 
     -- perform several actions eg cloing modal and logging in.
     -- done one after the other.
@@ -305,6 +325,24 @@ handleEntryUpdate msg model =
   in
     { actedModel | entryModal = entryModal' } ! [Cmd.map EntryModal cmd]
 
+handleDayUpdate : DayModal.Msg -> Model -> (Model, Cmd Msg)
+handleDayUpdate msg model =
+  let
+    (dayModal', act, cmd) = DayModal.update msg model.dayModal
+    actedModel = case act of
+        Just (DayModal.Added day) ->
+            closeTopModal { model | days = model.days ++ [day] }
+        Just (DayModal.Updated day) ->
+            closeTopModal { model | days = List.map (\d -> if d.id == day.id then day else d) model.days }
+        Just (DayModal.Removed dayId) ->
+            closeTopModal { model | days = List.filter (\d -> d.id /= dayId) model.days }
+        Just DayModal.CloseMe ->
+            closeTopModal model
+        Nothing ->
+            model
+  in
+    { actedModel | dayModal = dayModal' } ! [Cmd.map DayModal cmd]
+
 -- logs Msg's but hides sensitive information on a case by case:
 logMsg : Msg -> Msg
 logMsg msg =
@@ -388,7 +426,15 @@ view model =
         div [ class "entries-tab" ]
             [ isLoggedIn ?
                 div [ class "add-entry-area" ]
-                    [ Button.render Mdl [0,2] model.mdl
+                    [ model.isAdminMode ?
+                        Button.render Mdl [0,2] model.mdl
+                            [ Button.raised
+                            , Button.colored
+                            , Button.ripple
+                            , Button.onClick ShowAddDayModal
+                            ]
+                            [ text "Add Day"]
+                    , Button.render Mdl [0,2] model.mdl
                         [ Button.raised
                         , Button.colored
                         , Button.ripple
