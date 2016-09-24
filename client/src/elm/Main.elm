@@ -7,6 +7,7 @@ import Debug
 import Dict exposing (Dict)
 import List
 import String
+import Markdown
 --import Process
 --import Time
 
@@ -532,6 +533,7 @@ renderEntry model e =
         Nothing -> "an Unknown User"
         Just u -> u.fullName
     entryHours = toFloat e.duration / 3600000
+    markdownOpts = let d = Markdown.defaultOptions in { d | sanitize = True }
   in
     div [ class ("entry " ++ entryClass) ]
         [ div [ class "title" ]
@@ -540,7 +542,7 @@ renderEntry model e =
                 then a [ class "text link", onClick (ShowEditEntryModal e) ] [ text e.name ]
                 else div [ class "text" ] [ text e.name ]
             ]
-        , div [ class "description" ] [ text e.description ]
+        , div [ class "description" ] [ Markdown.toHtmlWith markdownOpts [class "markdown"] e.description ]
         , div [ class "user"] [ text ("By " ++ entryUser) ]
         , div [ class "duration" ] [ span [] [ text <| (toString entryHours)++"h" ] ]
         ]
