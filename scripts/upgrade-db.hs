@@ -23,9 +23,11 @@ import Data.Aeson.Lens
 --
 upgraders = do
 
-    -- remove "date" from days and add "description" instead.
+    -- remove "date" from days and add "description" instead. add created and modified fields.
     1 ==> set (key "days" . _Array . each . _Object . at "date") Nothing
        |> set (key "days" . _Array . each . _Object . at "description") (Just $ String "")
+       |> set (key "days" . _Array . each . _Object . at "created") (Just $ Number 0)
+       |> set (key "days" . _Array . each . _Object . at "modified") (Just $ Number 0)
 
     -- -- EXAMPLE: set "email" of each user to blank string and "subscribed" of each user to false
     -- 1 ==> set (key "users" . _Array . each . _Object . at "email") (Just $ String "")

@@ -93,6 +93,8 @@ data Day = Day
     , dayTitle       :: String
     , dayDescription :: String
     , dayEntries     :: [Id]
+    , dayCreated     :: Int
+    , dayModified    :: Int
     } deriving (Eq, Show, Generic)
 
 instance ToJSON Day where toJSON = toPrefix "day"

@@ -389,11 +389,14 @@ type SetDay = IsAdmin :> "set" :> Capture "dayId" Id :> ReqBody '[JSON] DayInput
 setDay :: AdminUserSession -> Id -> DayInput -> Application Day
 setDay _ dId input = do
 
+    currTime <- getTimeMillis
+
     let mEntryIds = diEntries input
         update day = day
             & dayTitleL       ~? diTitle input
             & dayDescriptionL ~? diDescription input
             & dayEntriesL     ~? mEntryIds
+            & dayModifiedL    .~ currTime
 
     entriesExist <- case mEntryIds of
         Nothing -> return True
@@ -422,6 +425,7 @@ addDay _ input = do
     entriesExist <- doEntriesExist entryIds
     throwIf (not entriesExist) err400
 
+    currTime <- getTimeMillis
     newId <- Id <$> Id.generate
     mItem <- getItem allDaysL (\d -> dayId d == newId)
 
@@ -430,6 +434,8 @@ addDay _ input = do
             , dayTitle       = addDayTitle input
             , dayDescription = addDayDescription input
             , dayEntries     = entryIds
+            , dayCreated     = currTime
+            , dayModified    = currTime
             }
 
     case mItem of
