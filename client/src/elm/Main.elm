@@ -32,6 +32,7 @@ import Dnd
 import Api
 import Api.Entries as Entries exposing (Entry, EntryType(..), EntryError(..))
 import Api.Users as Users exposing (User, UserType(..), LoginError(..))
+import Api.Days as Days exposing (Day)
 
 --
 -- Model
@@ -43,6 +44,7 @@ initialModel =
 
     , tab = EntriesTab
     , entries = []
+    , days = []
     , entriesDnd = Dnd.model
     , users = Dict.empty
     , modals = []
@@ -69,6 +71,7 @@ type alias Model =
 
     , tab : Tab
     , entries : List Entry
+    , days : List Day
     , entriesDnd : Dnd.Model
     , users : Dict String User
     , modals : List (TheModel -> Html Msg)
@@ -148,7 +151,7 @@ update msg model = case logMsg msg of
     ApiError error ->
         { model | loading = False, error = toString error } ! []
     UpdateCoreDetails core ->
-        showSetPasswordIfNeeded { model | loading = False, user = core.currentUser, entries = core.entries, users = core.users }
+        showSetPasswordIfNeeded { model | loading = False, user = core.currentUser, entries = core.entries, users = core.users, days = core.days }
             ! [] -- [ Task.perform ApiError UpdateCoreDetails <| Process.sleep (30 * Time.second) `Task.andThen` \_ -> getEverything ]
     LogOut ->
         showModal logoutModal model ! []
@@ -637,7 +640,7 @@ init : (Model, Cmd Msg)
 init = (initialModel, updateEverything)
 
 type alias CoreDetails =
-    { currentUser : Maybe User, entries : List Entry, users : Dict String User }
+    { currentUser : Maybe User, entries : List Entry, users : Dict String User, days : List Day }
 
 updateEverything : Cmd Msg
 updateEverything = Task.perform ApiError UpdateCoreDetails getEverything
@@ -645,7 +648,11 @@ updateEverything = Task.perform ApiError UpdateCoreDetails getEverything
 getEverything : Task Api.Error CoreDetails
 getEverything =
   let
-    fn = \curr entries users ->
-        { currentUser = curr, entries = entries, users = users }
+    fn = \curr entries users days ->
+        { currentUser = curr, entries = entries, users = users, days = days }
   in
-    Task.map3 fn Users.current Entries.get Users.get
+    Task.map4 fn
+        Users.current
+        Entries.get
+        Users.get
+        Days.get

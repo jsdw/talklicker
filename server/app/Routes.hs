@@ -402,7 +402,10 @@ setDay _ dId input = do
         Nothing -> return True
         Just eIds -> doEntriesExist eIds
 
-    throwIf (not entriesExist) err400
+    let trueForJust cond mVal = if mVal == Nothing then True else fmap cond mVal == Just True
+    throwIf (not entriesExist) err400{ errReasonPhrase = "ENTRIES_NOT_FOUND" }
+    throwIf (null `trueForJust` (diTitle input)) err400{ errReasonPhrase = "BAD_TITLE" }
+    throwIf (null `trueForJust` (diDescription input)) err400{ errReasonPhrase = "BAD_DESCRIPTION" }
 
     mDay <- modifyItems allDaysL $ \day ->
         if dayId day == dId then Just (update day) else Nothing
@@ -423,7 +426,9 @@ addDay _ input = do
     let entryIds = addDayEntries input
 
     entriesExist <- doEntriesExist entryIds
-    throwIf (not entriesExist) err400
+    throwIf (not entriesExist) err400{ errReasonPhrase = "ENTRIES_NOT_FOUND" }
+    throwIf (null (addDayTitle input)) err400{ errReasonPhrase = "BAD_TITLE" }
+    throwIf (null (addDayDescription input)) err400{ errReasonPhrase = "BAD_DESCRIPTION" }
 
     currTime <- getTimeMillis
     newId <- Id <$> Id.generate
