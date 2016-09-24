@@ -427,9 +427,9 @@ view model =
                     ]
                 ]
             , div [ class "right" ]
-                [ isLoggedIn && not model.isAdminMode ?
+                [ isLoggedIn && isAdmin && not model.isAdminMode ?
                     div [ class "admin-mode", onClick ToggleAdminMode ] [ text "Admin Mode" ]
-                , isLoggedIn && model.isAdminMode ?
+                , isLoggedIn && isAdmin && model.isAdminMode ?
                     div [ class "admin-mode enabled", onClick ToggleAdminMode ] [ text "Admin Mode" ]
                 , isLoggedIn ?
                     text details.fullName
