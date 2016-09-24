@@ -14,27 +14,32 @@ import Data.Map (Map)
 import Data.Aeson (Value(..), decode, encode, object, (.=))
 import System.Environment (getArgs)
 import Data.Foldable (foldl')
-import Control.Lens hiding ((.=))
+import Control.Lens hiding ((.=), (|>))
 import Data.Aeson.Lens
+
 
 --
 -- Provide a version and a transformation to apply to the JSON:
 --
 upgraders = do
 
-    -- EXAMPLE: set "email" of each user to blank string and "subscribed" of each user to false
-    1 ==> set (key "users" . _Array . each . _Object . at "email") (Just $ String "")
-        . set (key "users" . _Array . each . _Object . at "subscribed") (Just $ Bool False)
+    -- remove "date" from days and add "description" instead.
+    1 ==> set (key "days" . _Array . each . _Object . at "date") Nothing
+       |> set (key "days" . _Array . each . _Object . at "description") (Just $ String "")
 
-    -- EXAMPLE: update "subscribed" of each user to true (key must exist to be updated)
-    2 ==> set (key "users" . _Array . each . key "subscribed") (Bool True)
+    -- -- EXAMPLE: set "email" of each user to blank string and "subscribed" of each user to false
+    -- 1 ==> set (key "users" . _Array . each . _Object . at "email") (Just $ String "")
+    --     . set (key "users" . _Array . each . _Object . at "subscribed") (Just $ Bool False)
 
-    -- EXAMPLE: rename "fullName" to "description" for each user (add description then remove fullName)
-    3 ==> set (key "users" . _Array . each . _Object . at "fullName") Nothing
-        . over (key "users" . _Array . each . _Object) (\u -> set (at "description") (preview (ix "fullName") u) u)
+    -- -- EXAMPLE: update "subscribed" of each user to true (key must exist to be updated)
+    -- 2 ==> set (key "users" . _Array . each . key "subscribed") (Bool True)
+
+    -- -- EXAMPLE: rename "fullName" to "description" for each user (add description then remove fullName)
+    -- 3 ==> set (key "users" . _Array . each . _Object . at "fullName") Nothing
+    --     . over (key "users" . _Array . each . _Object) (\u -> set (at "description") (preview (ix "fullName") u) u)
 
 --
--- The initial state of the database. This is essentially version 0.
+-- The initial state of the database. This can be version 0 or any other, and will be upgraded to latest.
 --
 initialState = object
     [ "days"  .= Array mempty
@@ -47,6 +52,7 @@ initialState = object
             ]
         ]
     , "entries" .= Array mempty
+    , "schemaVersion" .= (1 :: Int)
     ]
 
 --
@@ -86,5 +92,8 @@ infixl 0 ==>
 
 s :: String -> String
 s = id
+
+(|>) :: (a -> b) -> (b -> c) -> (a -> c)
+fn1 |> fn2 = fn2 . fn1
 
 type Changes = State (Int, Map Int (Value -> Value))

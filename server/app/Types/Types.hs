@@ -89,10 +89,10 @@ instance FromJSON Entry where parseJSON = fromPrefix "entry"
 
 
 data Day = Day
-    { dayId      :: Id
-    , dayTitle   :: String
-    , dayDate    :: Int
-    , dayEntries :: [Id]
+    { dayId          :: Id
+    , dayTitle       :: String
+    , dayDescription :: String
+    , dayEntries     :: [Id]
     } deriving (Eq, Show, Generic)
 
 instance ToJSON Day where toJSON = toPrefix "day"
@@ -151,17 +151,17 @@ data UserInput = UserInput
 instance FromJSON UserInput where parseJSON = fromPrefix "ui"
 
 data AddDayInput = AddDayInput
-    { addDayTitle   :: String
-    , addDayDate    :: Int
-    , addDayEntries :: [Id]
+    { addDayTitle       :: String
+    , addDayDescription :: String
+    , addDayEntries     :: [Id]
     } deriving (Show, Eq, Generic)
 
 instance FromJSON AddDayInput where parseJSON = fromPrefix "addDay"
 
 data DayInput = DayInput
-    { diTitle   :: Maybe String
-    , diDate    :: Maybe Int
-    , diEntries :: Maybe [Id]
+    { diTitle       :: Maybe String
+    , diDescription :: Maybe String
+    , diEntries     :: Maybe [Id]
     } deriving (Show, Eq, Generic)
 
 instance FromJSON DayInput where parseJSON = fromPrefix "di"

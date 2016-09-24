@@ -391,9 +391,9 @@ setDay _ dId input = do
 
     let mEntryIds = diEntries input
         update day = day
-            & dayTitleL  ~? diTitle input
-            & dayDateL   ~? diDate input
-            & dayEntriesL ~? mEntryIds
+            & dayTitleL       ~? diTitle input
+            & dayDescriptionL ~? diDescription input
+            & dayEntriesL     ~? mEntryIds
 
     entriesExist <- case mEntryIds of
         Nothing -> return True
@@ -426,10 +426,10 @@ addDay _ input = do
     mItem <- getItem allDaysL (\d -> dayId d == newId)
 
     let newDay = Day
-            { dayId = newId
-            , dayTitle = addDayTitle input
-            , dayDate = addDayDate input
-            , dayEntries = entryIds
+            { dayId          = newId
+            , dayTitle       = addDayTitle input
+            , dayDescription = addDayDescription input
+            , dayEntries     = entryIds
             }
 
     case mItem of
