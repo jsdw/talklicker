@@ -215,9 +215,10 @@ body > .content {
 
 		@mixin topButtonArea {
 			display: flex;
-			align-items:center;
-			justify-content:center;
-			padding-top:1em;
+			align-items: center;
+			justify-content: center;
+			padding-top: 1em;
+			padding-bottom: 1.5em;
 			flex-shrink: 0;
 
 			> *:not(:last-child) {
@@ -236,7 +237,6 @@ body > .content {
 			> .entries {
 				@include flexColumn;
 				align-items: center;
-				padding-top: 20px;
 				overflow-y: auto;
 
 				// these are nested into dnd things, so looser with targeting:
@@ -260,7 +260,6 @@ body > .content {
 
 				@include flexColumn;
 				align-items: center;
-				padding-top: 20px;
 				overflow-y: auto;
 
 				> .user {
