@@ -60,6 +60,7 @@ body, html {
 
 	> .title {
 		@include entryUserTitle;
+		margin-bottom: 0em; // because markdown desc will have margin-top 0.5em
 	}
 
 	> .description {
@@ -351,6 +352,9 @@ body > .content {
 				> .input-name {
 					padding-right: 1em;
 					vertical-align: middle;
+					> .subtitle {
+						font-size: 0.7em;
+					}
 				}
 				> .input-widget {
 					.type-inputs {

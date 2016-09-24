@@ -5,12 +5,16 @@ import Html.Attributes exposing (..)
 import String
 
 inputRow : String -> Html a -> Html a
-inputRow title html =
+inputRow title html = inputRowSub title "" html
+
+inputRowSub : String -> String -> Html a -> Html a
+inputRowSub title subtitle html =
   let
     key = String.map (\c -> if c == ' ' then '-' else c) <| String.toLower title
   in
     tr [ class ("input-row input-row-"++key) ]
-        [ td [ class ("input-name input-name-"++key) ] [ text title ]
+        [ td [ class ("input-name input-name-"++key) ]
+            [ span [ class "title" ] [ text title ], div [ class "subtitle" ] [ text subtitle ] ]
         , td [ class "input-widget" ] [ html ]
         ]
 

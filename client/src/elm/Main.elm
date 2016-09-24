@@ -582,7 +582,9 @@ renderEntry model e =
         Nothing -> "an Unknown User"
         Just u -> u.fullName
     entryHours = toFloat e.duration / 3600000
-    markdownOpts = let d = Markdown.defaultOptions in { d | sanitize = True }
+    markdownOpts =
+        let d = Markdown.defaultOptions
+        in { d | sanitize = True }
   in
     div [ class ("entry " ++ entryClass) ]
         [ div [ class "title" ]

@@ -4,8 +4,9 @@
 .dnd-items:not(#a) {
 
     > .dnd-item.being-dragged {
-        height: 0px;
-        visibility: hidden;
+        opacity: 0.3;
+        //height: 50px;
+        //visibility: hidden;
     }
 
     > .dnd-spacer {

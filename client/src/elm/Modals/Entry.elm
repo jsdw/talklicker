@@ -5,6 +5,7 @@ module Modals.Entry exposing (model, prepareForAdd, prepareForEdit, Model, Msg, 
 import Html.Attributes exposing (..)
 import Html exposing (..)
 import Task
+import String
 
 import Material
 import Material.Options as Options exposing (when, css, cs)
@@ -113,6 +114,9 @@ type Act
     | Removed String --entry ID
     | CloseMe
 
+maxDescriptionLength : Int
+maxDescriptionLength = 280
+
 update : Msg -> Model -> (Model, Maybe Act, Cmd Msg)
 update msg model = case msg of
     RemoveModal ->
@@ -120,7 +124,7 @@ update msg model = case msg of
     UpdateEntryName val ->
         { model | entryName = val } !! []
     UpdateEntryDescription val ->
-        { model | entryDescription = val } !! []
+        { model | entryDescription = String.slice 0 maxDescriptionLength val } !! []
     UpdateEntryType val ->
         { model | entryType = val } !! []
     UpdateEntryDuration val ->
@@ -239,6 +243,8 @@ entryModalHtml isEditMode model =
         _ -> "Something unsettling happened!"
     durationString =
         toString (toFloat model.entryDuration / 3600000) ++ "h"
+    entryChars =
+        " ("++(toString (String.length model.entryDescription))++ "/"++toString maxDescriptionLength++")"
   in
     div [ class "entry-modal" ]
         [ table [ class "inputs" ]
@@ -248,7 +254,7 @@ entryModalHtml isEditMode model =
                     , Textfield.onInput UpdateEntryName
                     , Textfield.value model.entryName
                     ]
-            , inputRow "Description" <|
+            , inputRowSub "Description" entryChars <|
                 Textfield.render Mdl [1] model.mdl
                     [ Textfield.label "More detail"
                     , Textfield.textarea
