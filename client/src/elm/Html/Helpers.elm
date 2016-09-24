@@ -19,6 +19,7 @@ isJust m = case m of
     Nothing -> False
     Just _ -> True
 
+infixl 1 ?
 (?) : Bool -> Html a -> Html a
 (?) b html = if b then html else noNode
 
@@ -32,4 +33,4 @@ isJust m = case m of
 (!??) m html = if isJust m then noNode else html
 
 noNode : Html a
-noNode = node "nothing" [ style [("position", "absolute"), ("display", "none")] ] []
+noNode = text ""

@@ -40,6 +40,7 @@ import Api.Users as Users exposing (User, UserType(..), LoginError(..))
 initialModel : Model
 initialModel =
     { loading = True
+    , isAdminMode = False
 
     , tab = EntriesTab
     , entries = []
@@ -66,6 +67,7 @@ initialModel =
 
 type alias Model =
     { loading : Bool
+    , isAdminMode : Bool
 
     , tab : Tab
     , entries : List Entry
@@ -109,6 +111,9 @@ type Msg
     | DoLogout
 
     | EntriesDnd Dnd.Msg
+
+    -- admin mode
+    | ToggleAdminMode
 
     -- login modal:
     | ShowLoginModal
@@ -154,6 +159,10 @@ update msg model = case logMsg msg of
         showModal logoutModal model ! []
     DoLogout ->
         { model | user = Nothing, tab = EntriesTab } ! [Task.perform (always Noop) (always Noop) Users.logout]
+
+    -- admin mode:
+    ToggleAdminMode ->
+        { model | isAdminMode = not model.isAdminMode } ! []
 
     -- handle DND output:
     EntriesDnd msg ->
@@ -410,7 +419,7 @@ view model =
 
   in
     div [ class "content" ]
-        [ div [ class "top" ]
+        [ div [ class ("top"++if model.isAdminMode then " is-admin-mode" else "") ]
             [ div [ class "left" ]
                 [ span [ class "logo" ]
                     [ text "TalkLicker"
@@ -418,7 +427,11 @@ view model =
                     ]
                 ]
             , div [ class "right" ]
-                [ isLoggedIn ?
+                [ isLoggedIn && not model.isAdminMode ?
+                    div [ class "admin-mode", onClick ToggleAdminMode ] [ text "Admin Mode" ]
+                , isLoggedIn && model.isAdminMode ?
+                    div [ class "admin-mode enabled", onClick ToggleAdminMode ] [ text "Admin Mode" ]
+                , isLoggedIn ?
                     text details.fullName
                 , isLoggedIn ?
                     profileMenu model
@@ -437,7 +450,7 @@ view model =
                     ]
             ]
 
-            , isAdmin ?
+            , model.isAdminMode ?
                 Tabs.render Mdl [0,10] model.mdl
                     [ Tabs.ripple
                     , Tabs.onSelectTab (\i -> SelectTab (if i == 0 then EntriesTab else UsersTab))
@@ -461,7 +474,7 @@ view model =
                         EntriesTab -> entriesTab
                         UsersTab -> usersTab
                     ]
-            , not isAdmin ?
+            , not model.isAdminMode ?
                 div [ class "main" ]
                     [ entriesTab ]
         , div [ class "modals" ] (List.map (\modalFunc -> modalFunc (TheModel model)) model.modals)
@@ -509,7 +522,6 @@ renderEntry : Model -> Entry -> Html Msg
 renderEntry model e =
   let
     isMine = Maybe.map .name model.user == Just e.user
-    isAdmin = Maybe.map .userType model.user == Just Admin
     entryClass = case e.entryType of
         Talk -> "entry-talk"
         Project -> "entry-project"
@@ -524,7 +536,7 @@ renderEntry model e =
     div [ class ("entry " ++ entryClass) ]
         [ div [ class "title" ]
             [ entryIcon
-            , if isAdmin || isMine
+            , if model.isAdminMode || isMine
                 then a [ class "text link", onClick (ShowEditEntryModal e) ] [ text e.name ]
                 else div [ class "text" ] [ text e.name ]
             ]
@@ -535,16 +547,13 @@ renderEntry model e =
 
 renderUser : Model -> User -> Html Msg
 renderUser model user =
-  let
-    isAdmin = user.userType == Admin
-  in
-    div [ class ("user " ++ if isAdmin then "user-admin" else "user-normal") ]
+    div [ class ("user " ++ if model.isAdminMode then "user-admin" else "user-normal") ]
         [ div [ class "title" ]
-            [ Icon.i (if isAdmin then "star" else "person")
+            [ Icon.i (if model.isAdminMode then "star" else "person")
             , a [ class "text link", onClick (ShowEditUserModal user) ] [ text user.name ]
             ]
         , div [ class "name" ] [ text user.fullName ]
-        , div [ class "type"] [ text (if isAdmin then "Administrator" else "Normal User") ]
+        , div [ class "type"] [ text (if model.isAdminMode then "Administrator" else "Normal User") ]
         , not user.hasPass ? div [ class "is-new" ] [ text "New" ]
         ]
 
