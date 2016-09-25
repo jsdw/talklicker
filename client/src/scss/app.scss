@@ -17,6 +17,48 @@ body, html {
 	flex-direction: column;
 }
 
+@mixin bigTitle {
+    width: 820px;
+    padding: 0.2em;
+    display: flex;
+    justify-content: center;
+    position: relative;
+    color: #000000;
+    margin-bottom: 1.2em;
+    font-size: 2em;
+    font-weight: 400;
+    line-height: 1.2em;
+
+	&::after {
+		content: '';
+		position: absolute;
+		bottom: -150px;
+
+		// oddly, on chrome, this lay behind things yet intefered with DnD. this stops that:
+		z-index: -1;
+		pointer-events: none;
+
+		right: 0px;
+		width: 100%;
+		box-sizing: border-box;
+		border: 75px solid transparent;
+		border-left-width: 100px;
+		border-right-width: 100px;
+	}
+}
+
+@mixin bigPinkTitle {
+	@include bigTitle;
+    background-color: #f6cfff;
+	&::after { border-top-color: #d39ee0; }
+}
+
+@mixin bigBlueTitle {
+	@include bigTitle;
+    background-color: #d2cfff;
+	&::after { border-top-color: #9c97da; }
+}
+
 @mixin entryUserTitle {
 
 	font-weight: 600;
@@ -42,7 +84,7 @@ body, html {
 	position: relative;
 	flex-shrink: 0;
 
-	width: 660px;
+	width: 700px;
 	margin-bottom: 5px;
 	padding: 10px;
 	padding: 0.5em 1em;
@@ -269,7 +311,8 @@ body > .content {
 				align-items: center;
 
 				> .days-title {
-					margin-top: 0;
+					margin-top: 0.4em;
+					@include bigBlueTitle;
 				}
 
 				.day {
@@ -281,6 +324,10 @@ body > .content {
 				@include flexColumn;
 				align-items: center;
 				overflow-y: auto;
+
+				> .entries-title {
+					@include bigPinkTitle;
+				}
 
 				// these are nested into dnd things, so looser with targeting:
 				.entry {
