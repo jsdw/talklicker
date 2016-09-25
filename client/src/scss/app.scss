@@ -135,6 +135,10 @@ body > .content {
 			border-bottom: 6px solid $adminOrange;
 		}
 
+		&.padded {
+			margin-bottom: 1.5em;
+		}
+
 		> .left {
 			display: flex;
 			align-items: center;
@@ -219,7 +223,7 @@ body > .content {
 			display: flex;
 			align-items: center;
 			justify-content: center;
-			padding-top: 1em;
+			padding-top: 1.5em;
 			padding-bottom: 1.5em;
 			flex-shrink: 0;
 

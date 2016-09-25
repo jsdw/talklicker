@@ -174,7 +174,7 @@ update msg model = case logMsg msg of
     LogOut ->
         showModal logoutModal model ! []
     DoLogout ->
-        { model | user = Nothing, tab = EntriesTab } ! [Task.perform (always Noop) (always Noop) Users.logout]
+        { model | isAdminMode = False, user = Nothing, tab = EntriesTab } ! [Task.perform (always Noop) (always Noop) Users.logout]
 
     -- admin mode:
     ToggleAdminMode ->
@@ -469,7 +469,7 @@ view model =
 
   in
     div [ class "content" ]
-        [ div [ class ("top"++if model.isAdminMode then " is-admin-mode" else "") ]
+        [ div [ class ("top"++if model.isAdminMode then " is-admin-mode" else ""++if not isLoggedIn then " padded" else "") ]
             [ div [ class "left" ]
                 [ span [ class "logo" ]
                     [ text "TalkLicker"
