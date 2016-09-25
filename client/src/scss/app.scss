@@ -535,6 +535,9 @@ body > .content {
 										display: flex;
 										align-items: center;
 									}
+									textarea {
+										max-height: 400px;
+									}
 								}
 							}
 
@@ -552,6 +555,10 @@ body > .content {
 						> .inputs {
 							@include input-table;
 							@include max-width-inputs;
+
+							.input-row > .input-widget textarea {
+								max-height: 400px;
+							}
 						}
 						> .bottom-row {
 							@include modal-bottom-row;
