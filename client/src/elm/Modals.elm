@@ -46,6 +46,10 @@ render {title,content,onClose,preventClose,hideClose,isLoading,mdl,cover} model 
         ([ div [ class "modal-inner" ]
             [ div [ class "title" ]
                 [ div [ class "title-inner" ] [ title ]
+                , isLoading ?
+                    div [ class "loading-overlay" ]
+                        [ Loading.indeterminate
+                        ]
                 , not hideClose ?
                     Button.render mdl [100,0] model.mdl
                         [ Button.icon
@@ -54,10 +58,6 @@ render {title,content,onClose,preventClose,hideClose,isLoading,mdl,cover} model 
                         , Button.disabled `when` preventClose
                         ]
                         [ Icon.i "close" ]
-                , isLoading ?
-                    div [ class "loading-overlay" ]
-                        [ Loading.indeterminate
-                        ]
                 ]
             , div [ class "content" ]
                 [ content
