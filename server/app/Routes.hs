@@ -451,7 +451,7 @@ addDay _ input = do
 -- REMOVE DAY
 --
 
-type RemoveDay = IsAdmin :> ReqBody '[JSON] Id :> Delete '[JSON] Bool
+type RemoveDay = IsAdmin :> Capture "dayId" Id :> Delete '[JSON] Bool
 
 removeDay :: AdminUserSession -> Id -> Application Bool
 removeDay _ dId = do

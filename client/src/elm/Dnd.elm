@@ -15,17 +15,17 @@ import Html.Keyed as Keyed
 --
 
 -- hide our model's internal state:
-type Model = Model TheModel
+type Model comparableId = Model (TheModel comparableId)
 
-type alias TheModel =
-    { selectedId : Maybe String
-    , dragPosition : Maybe DragPosition
+type alias TheModel comparableId =
+    { selectedId : Maybe comparableId
+    , dragPosition : Maybe (DragPosition comparableId)
     , dragInProgress : Bool
     , startXY : Mouse.Position
     , currentXY : Mouse.Position
     }
 
-model : Model
+model : Model comparableId
 model = Model
     { selectedId = Nothing
     , dragPosition = Nothing
@@ -34,18 +34,16 @@ model = Model
     , currentXY = { x = 0, y = 0 }
     }
 
-draggedId : Model -> String
-draggedId (Model m) = case m.selectedId of
-    Nothing -> ""
-    Just i -> i
+draggedId : Model comparableId -> Maybe comparableId
+draggedId (Model m) = m.selectedId
 
-beingDragged : Model -> Bool
+beingDragged : Model comparableId -> Bool
 beingDragged (Model m) = m.dragInProgress
 
-position : Model -> Mouse.Position
+position : Model comparableId -> Mouse.Position
 position (Model m) = m.currentXY
 
-delta : Model -> Mouse.Position
+delta : Model comparableId -> Mouse.Position
 delta (Model m) = { x = m.currentXY.x - m.startXY.x, y = m.currentXY.y - m.startXY.y }
 
 exceedsThreshold : Mouse.Position -> Mouse.Position -> Bool
@@ -60,27 +58,28 @@ exceedsThreshold posA posB =
 -- Update the state accoding to these events:
 --
 
-type Msg
-    = DragStart String Mouse.Position
-    | DragOver (Maybe DragPosition)
+type Msg comparableId
+    = DragStart comparableId Mouse.Position
+    | DragOver (Maybe (DragPosition comparableId))
     | DragMove Mouse.Position
     | DragComplete
     | DragCancel
     | Noop
 
-type Act
-    = MovedTo String DragPosition
+type Act comparableId
+    = MovedTo comparableId (DragPosition comparableId)
 
 -- a tuple of the things we're between at present,
 -- which could be Ids or beginning/end of list.
-type alias DragPosition = (Position, Position)
+type alias DragPosition comparableId = (Position comparableId, Position comparableId)
 
-type Position
+type Position comparableId
     = AtBeginning
-    | AtId String
+    | AtId comparableId
     | AtEnd
 
-update : Msg -> Model -> (Model, Maybe Act)
+
+update : Msg comparableId -> Model comparableId -> (Model comparableId, Maybe (Act comparableId))
 update msg (Model model) = case msg of
     DragStart id pos ->
         { model | selectedId = Just id, startXY = pos, currentXY = pos, dragInProgress = False } !! Nothing
@@ -100,10 +99,10 @@ update msg (Model model) = case msg of
     Noop ->
         model !! Nothing
 
-(!!) : TheModel -> Maybe Act -> (Model, Maybe Act)
+(!!) : TheModel comparableId -> Maybe (Act comparableId) -> (Model comparableId, Maybe (Act comparableId))
 (!!) model act = (Model model, act)
 
-cancelDrag : TheModel -> TheModel
+cancelDrag : TheModel comparableId -> TheModel comparableId
 cancelDrag model =
     { model | selectedId = Nothing, dragPosition = Nothing, dragInProgress = False }
 
@@ -111,7 +110,7 @@ cancelDrag model =
 -- Subscribe to mouseUps as necessary to keep DnD state consistent.
 --
 
-sub : Model -> Sub Msg
+sub : Model comparableId -> Sub (Msg comparableId)
 sub (Model model) = case model.selectedId of
     Nothing -> Sub.none
     Just _ -> Sub.batch
@@ -125,8 +124,10 @@ sub (Model model) = case model.selectedId of
 -- identify them to the outside world.
 --
 
-view : Model -> (Msg -> parentMsg) -> List (String, Html parentMsg) -> Html parentMsg
-view (Model model) pm items =
+type alias Options = Bool
+
+view : Options -> Model comparableId -> (Msg comparableId -> parentMsg) -> List (comparableId, Html parentMsg) -> Html parentMsg
+view allowDnd (Model model) pm items =
   let
     -- drag start occurs
     onDragStart id =
@@ -149,7 +150,7 @@ view (Model model) pm items =
         isBeingDragged = Just id == model.selectedId
         el =
             div [ class ("dnd-item" ++ if isBeingDragged && model.dragInProgress then " being-dragged" else "")
-                , onDragStart id
+                , if allowDnd then onDragStart id else noAttr
                 ]
                 [ html
                 -- these will live above the element, covering top half and bottom half when drag is in porogress
@@ -163,7 +164,7 @@ view (Model model) pm items =
                     ] []
                 ]
       in
-        (id, el)
+        (toString id, el)
     -- these live between each item (and at the beginning and end) and expand when the drag is in their
     -- region or collapse otherwise, to make space for the drop.
     toDndSpacer ((a,b) as dragPosition) =
@@ -215,3 +216,6 @@ defaultFromArr : Int -> (a -> b) -> b -> Array.Array a -> b
 defaultFromArr idx fn def a = case Array.get idx a of
     Nothing -> def
     Just v -> fn v
+
+noAttr : Attribute msg
+noAttr = attribute "x" ""

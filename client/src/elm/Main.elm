@@ -79,7 +79,7 @@ type alias Model =
     , tab : Tab
     , entries : List Entry
     , days : List Day
-    , entriesDnd : Dnd.Model
+    , entriesDnd : Dnd.Model EntryDndKey
     , users : Dict String User
     , modals : List (TheModel -> Html Msg)
     , error : String
@@ -108,6 +108,11 @@ type alias Model =
 -- hiding itself inside a real type:
 type TheModel = TheModel Model
 
+-- the type of key we are using for DnD things.
+-- this is what we provide to DnD and get back on
+-- DnD finish.
+type alias EntryDndKey = String
+
 type Tab = EntriesTab | UsersTab
 
 --
@@ -121,7 +126,7 @@ type Msg
     | LogOut
     | DoLogout
 
-    | EntriesDnd Dnd.Msg
+    | EntriesDnd (Dnd.Msg EntryDndKey)
 
     -- admin mode
     | ToggleAdminMode
@@ -261,7 +266,7 @@ update msg model = case logMsg msg of
         (model, Cmd.none)
 
 -- handle moving an entry given DND finish
-moveEntryTo : String -> Dnd.Position -> Dnd.Position -> Model -> (Model, Cmd Msg)
+moveEntryTo : String -> Dnd.Position EntryDndKey -> Dnd.Position EntryDndKey -> Model -> (Model, Cmd Msg)
 moveEntryTo id before after model =
   let
     entrySingleton = List.filter (\e -> e.id == id) model.entries
@@ -421,6 +426,8 @@ view model =
         Nothing -> { fullName = "Unknown User", userType = NormalUser }
         Just u -> { fullName = u.fullName, userType = u.userType }
     isAdmin = details.userType == Admin
+    isDays = model.days /= []
+    isEntries = model.entries /= []
 
     -- entries tab with list of entries
     entriesTab =
@@ -443,12 +450,20 @@ view model =
                         ]
                         [ text "Add Entry"]
                     ]
-            , div [ class "entries" ] <|
-                if model.entries == []
-                then [ div [ class "no-entries" ] [ text "No entries have been added yet." ] ]
-                else if isLoggedIn
-                    then [ Dnd.view model.entriesDnd EntriesDnd <| List.map (\e -> (e.id, renderEntry model e)) model.entries ]
-                    else List.map (renderEntry model) model.entries
+            , isDays ?
+                div [ class "days" ]
+                    [ h2 [ class "days-title" ] [ text "Days" ]
+                    , div [ class "days-inner" ] (List.map (renderDay model) model.days)
+                    ]
+            , div [ class "entries" ]
+                [ isDays ?
+                    h2 [ class "entries-title" ] [ text "Entries" ]
+                , if not isEntries
+                  then
+                    div [ class "no-entries" ] [ text "No entries have been added yet." ]
+                  else
+                    Dnd.view isLoggedIn model.entriesDnd EntriesDnd <| List.map (\e -> (e.id, renderEntry model e)) model.entries
+                ]
             ]
 
     -- admin tab with list of users
@@ -537,7 +552,7 @@ draggingEntry : Model -> Html Msg
 draggingEntry model =
   let
     draggedId = Dnd.draggedId model.entriesDnd
-    entry = case List.filter (\e -> e.id == draggedId) model.entries of
+    entry = case List.filter (\e -> Just e.id == draggedId) model.entries of
         [e] -> renderEntry model e
         _ -> text ""
     pos = Dnd.position model.entriesDnd
@@ -568,6 +583,18 @@ profileMenu model =
             [ i "lock", text "Log out" ]
         ]
 
+renderDay : Model -> Day -> Html Msg
+renderDay model d =
+    div [ class "day" ]
+        [ div [ class "title" ]
+            [ if model.isAdminMode
+                then a [ class "text link", onClick (ShowEditDayModal d) ] [ text d.title ]
+                else div [ class "text" ] [ text d.title ]
+            ]
+        , div [ class "description" ]
+            [ markdown [class "markdown"] d.description ]
+        ]
+
 renderEntry : Model -> Entry -> Html Msg
 renderEntry model e =
   let
@@ -593,7 +620,7 @@ renderEntry model e =
                 then a [ class "text link", onClick (ShowEditEntryModal e) ] [ text e.name ]
                 else div [ class "text" ] [ text e.name ]
             ]
-        , div [ class "description" ] [ Markdown.toHtmlWith markdownOpts [class "markdown"] e.description ]
+        , div [ class "description" ] [ markdown [class "markdown"] e.description ]
         , div [ class "user"] [ text ("By " ++ entryUser) ]
         , div [ class "duration" ] [ span [] [ text <| (toString entryHours)++"h" ] ]
         ]
@@ -678,6 +705,15 @@ logoutModal model =
         }
   in
     Modals.choice opts model
+
+markdown : List (Attribute Msg) -> String -> Html Msg
+markdown attrs txt =
+  let
+    markdownOpts =
+        let d = Markdown.defaultOptions
+        in { d | sanitize = True }
+  in
+    Markdown.toHtmlWith markdownOpts attrs txt
 
 --
 -- Main

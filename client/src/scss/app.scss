@@ -8,7 +8,8 @@ $adminOrange: #ffb100;
 body, html {
 	margin: 0;
 	padding: 0;
-	//font-family: 'Open Sans', sans-serif;
+	line-height: 1.45; //multiple of font size.
+	font-family: 'Open Sans', sans-serif;
 }
 
 @mixin flexColumn {
@@ -25,7 +26,7 @@ body, html {
 	font-size: 1.1em;
 
 	.text.link {
-		font-weight: 600;
+		font-weight: inherit;
 		color: #5c5eff;
 		text-decoration: underline;
 		cursor: pointer;
@@ -35,6 +36,29 @@ body, html {
 		margin-right: 0.3em;
 	}
 
+}
+
+@mixin day {
+	position: relative;
+	flex-shrink: 0;
+
+	width: 660px;
+	margin-bottom: 5px;
+	padding: 10px;
+	padding: 0.5em 1em;
+
+	background-color: white;
+	border-bottom: 1px solid rgb(209, 209, 209);
+	border-right: 1px solid rgb(248, 248, 248);
+	border-top: 1px solid rgb(248, 248, 248);
+	border-left: 8px solid #ef00ff;
+
+	> .title {
+		@include entryUserTitle;
+		font-size: 2em;
+		font-weight: 500;
+		margin-bottom: 0em; // because markdown desc will have margin-top 0.5em
+	}
 }
 
 @mixin entry {
@@ -238,6 +262,19 @@ body > .content {
 
 			> .add-entry-area {
 				@include topButtonArea;
+			}
+
+			> .days {
+				@include flexColumn;
+				align-items: center;
+
+				> .days-title {
+					margin-top: 0;
+				}
+
+				.day {
+					@include day;
+				}
 			}
 
 			> .entries {
