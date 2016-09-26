@@ -450,19 +450,21 @@ view model =
                         ]
                         [ text "Add Entry"]
                     ]
-            , isDays ?
-                div [ class "days" ]
-                    [ h2 [ class "days-title" ] [ text "Days" ]
-                    , div [ class "days-inner" ] (List.map (renderDay model) model.days)
-                    ]
-            , div [ class "entries" ]
+            , div [ class "scrollable" ]
                 [ isDays ?
-                    h2 [ class "entries-title" ] [ text "Entries" ]
-                , if not isEntries
-                  then
-                    div [ class "no-entries" ] [ text "No entries have been added yet." ]
-                  else
-                    Dnd.view isLoggedIn model.entriesDnd EntriesDnd <| List.map (\e -> (e.id, renderEntry model e)) model.entries
+                    div [ class "days" ]
+                        [ h2 [ class "days-title" ] [ text "Days" ]
+                        , div [ class "days-inner" ] (List.map (renderDay model) model.days)
+                        ]
+                , div [ class "entries" ]
+                    [ isDays ?
+                        h2 [ class "entries-title" ] [ text "Entries" ]
+                    , if not isEntries
+                    then
+                        div [ class "no-entries" ] [ text "No entries have been added yet." ]
+                    else
+                        Dnd.view isLoggedIn model.entriesDnd EntriesDnd <| List.map (\e -> (e.id, renderEntry model e)) model.entries
+                    ]
                 ]
             ]
 
@@ -627,13 +629,16 @@ renderEntry model e =
 
 renderUser : Model -> User -> Html Msg
 renderUser model user =
-    div [ class ("user " ++ if model.isAdminMode then "user-admin" else "user-normal") ]
+  let
+    isUserAdmin = user.userType == Admin
+  in
+    div [ class ("user " ++ if isUserAdmin then "user-admin" else "user-normal") ]
         [ div [ class "title" ]
-            [ Icon.i (if model.isAdminMode then "star" else "person")
+            [ Icon.i (if isUserAdmin then "star" else "person")
             , a [ class "text link", onClick (ShowEditUserModal user) ] [ text user.name ]
             ]
         , div [ class "name" ] [ text user.fullName ]
-        , div [ class "type"] [ text (if model.isAdminMode then "Administrator" else "Normal User") ]
+        , div [ class "type"] [ text (if isUserAdmin then "Administrator" else "Normal User") ]
         , not user.hasPass ? div [ class "is-new" ] [ text "New" ]
         ]
 

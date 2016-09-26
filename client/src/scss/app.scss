@@ -20,8 +20,9 @@ body, html {
 @mixin bigTitle {
     width: 820px;
     padding: 0.2em;
-    display: flex;
-    justify-content: center;
+	text-align: center;
+    //display: flex;
+    //justify-content: center;
     position: relative;
     color: #000000;
     margin-bottom: 1.2em;
@@ -301,39 +302,48 @@ body > .content {
 		.entries-tab {
 
 			@include flexColumn;
+			//overflow-y: auto;
 
 			> .add-entry-area {
 				@include topButtonArea;
 			}
 
-			> .days {
-				@include flexColumn;
-				align-items: center;
+			> .scrollable {
 
-				> .days-title {
-					margin-top: 0.4em;
-					@include bigBlueTitle;
-				}
-
-				.day {
-					@include day;
-				}
-			}
-
-			> .entries {
-				@include flexColumn;
-				align-items: center;
 				overflow-y: auto;
 
-				> .entries-title {
-					@include bigPinkTitle;
+				> .days {
+					@include flexColumn;
+					align-items: center;
+					flex-shrink: 0;
+
+					> .days-title {
+						margin-top: 0.4em;
+						@include bigBlueTitle;
+					}
+
+					.day {
+						@include day;
+					}
 				}
 
-				// these are nested into dnd things, so looser with targeting:
-				.entry {
+				> .entries {
 					@include flexColumn;
-					@include entry;
+					align-items: center;
+					flex-shrink: 0;
+					overflow-y: auto;
+
+					> .entries-title {
+						@include bigPinkTitle;
+					}
+
+					// these are nested into dnd things, so looser with targeting:
+					.entry {
+						@include flexColumn;
+						@include entry;
+					}
 				}
+
 			}
 
 		}
