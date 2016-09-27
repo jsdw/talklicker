@@ -202,9 +202,9 @@ body > .content {
 			border-bottom: 6px solid $adminOrange;
 		}
 
-		&.padded {
-			margin-bottom: 1.5em;
-		}
+		// &.padded {
+		// 	margin-bottom: 1.5em;
+		// }
 
 		> .left {
 			display: flex;
@@ -274,6 +274,7 @@ body > .content {
 	.main {
 
 		@include flexColumn;
+		flex-grow: 1;
 
 		.mdl-tabs__tab-bar {
 			flex-shrink: 0;
@@ -281,8 +282,10 @@ body > .content {
 
 		.mdl-tab__panel.is-active {
 			@include flexColumn;
+			flex-grow: 1;
 			> div {
 				@include flexColumn;
+				flex-grow: 1;
 			}
 		}
 
@@ -291,7 +294,7 @@ body > .content {
 			align-items: center;
 			justify-content: center;
 			padding-top: 1.5em;
-			padding-bottom: 1.5em;
+			padding-bottom: 0.5em;
 			flex-shrink: 0;
 
 			> *:not(:last-child) {
@@ -302,7 +305,7 @@ body > .content {
 		.entries-tab {
 
 			@include flexColumn;
-			//overflow-y: auto;
+			flex-grow: 1;
 
 			> .add-entry-area {
 				@include topButtonArea;
@@ -310,40 +313,51 @@ body > .content {
 
 			> .scrollable {
 
-				overflow-y: auto;
+				position: relative;
+				flex-grow: 1;
 
-				> .days {
-					@include flexColumn;
-					align-items: center;
-					flex-shrink: 0;
+				> .scrollable-inner {
 
-					> .days-title {
-						margin-top: 0.4em;
-						@include bigBlueTitle;
-					}
-
-					.day {
-						@include day;
-					}
-				}
-
-				> .entries {
-					@include flexColumn;
-					align-items: center;
-					flex-shrink: 0;
+					position: absolute;
+					top: 0;
+					left: 0;
+					bottom: 0;
+					right: 0;
 					overflow-y: auto;
 
-					> .entries-title {
-						@include bigPinkTitle;
+					> .days {
+						@include flexColumn;
+						align-items: center;
+						flex-shrink: 0;
+						margin-top:1.5em;
+
+						> .days-title {
+							margin-top:0px;
+							@include bigBlueTitle;
+						}
+
+						.day {
+							@include day;
+						}
 					}
 
-					// these are nested into dnd things, so looser with targeting:
-					.entry {
+					> .entries {
 						@include flexColumn;
-						@include entry;
+						align-items: center;
+						flex-shrink: 0;
+						overflow-y: auto;
+
+						> .entries-title {
+							@include bigPinkTitle;
+						}
+
+						// these are nested into dnd things, so looser with targeting:
+						.entry {
+							@include flexColumn;
+							@include entry;
+						}
 					}
 				}
-
 			}
 
 		}
@@ -351,62 +365,75 @@ body > .content {
 		.users-tab {
 
 			@include flexColumn;
+			flex-grow: 1;
 
 			> .add-user-area {
 				@include topButtonArea;
 			}
 
-			> .users {
+			> .scrollable {
 
-				@include flexColumn;
-				align-items: center;
-				overflow-y: auto;
+				position: relative;
+				flex-grow: 1;
 
-				> .user {
+				> .scrollable-inner {
 
-					width: 500px;
-					margin-bottom: 5px;
-					padding: 10px;
-					padding: 0.5em 1em;
-					position: relative;
-					flex-shrink: 0;
+					position: absolute;
+					top: 0;
+					left: 0;
+					bottom: 0;
+					right: 0;
+					overflow-y: auto;
 
-					&.user-admin {
-						border-left: 8px solid $adminOrange;
-					}
-					&.user-normal {
-						border-left: 8px solid #8c9ca5
-					}
+					@include flexColumn;
+					align-items: center;
 
-					border-bottom: 1px solid rgb(209, 209, 209);
-					border-right: 1px solid rgb(248, 248, 248);
-					border-top: 1px solid rgb(248, 248, 248);
+					> .user {
 
-					> .title {
-						@include entryUserTitle;
-					}
+						width: 500px;
+						margin-bottom: 5px;
+						padding: 10px;
+						padding: 0.5em 1em;
+						position: relative;
+						flex-shrink: 0;
 
-					> .type {
-						font-style: italic;
-						color: rgb(130, 130, 130);
-						font-size:90%;
-					}
+						&.user-admin {
+							border-left: 8px solid $adminOrange;
+						}
+						&.user-normal {
+							border-left: 8px solid #8c9ca5
+						}
 
-					> .is-new {
-						position: absolute;
-						bottom: 5px;
-						right: 5px;
-						height: 32px;
-						width: 32px;
-						font-size:0.75em;
-						background-color: #ffd18c;
-						border-radius: 100px;
-						display: flex;
-						align-items: center;
-						justify-content: center;
-						color: #5a3c00;
-						font-weight: bold;
-						border: 1px solid #ffbc00;
+						border-bottom: 1px solid rgb(209, 209, 209);
+						border-right: 1px solid rgb(248, 248, 248);
+						border-top: 1px solid rgb(248, 248, 248);
+
+						> .title {
+							@include entryUserTitle;
+						}
+
+						> .type {
+							font-style: italic;
+							color: rgb(130, 130, 130);
+							font-size:90%;
+						}
+
+						> .is-new {
+							position: absolute;
+							bottom: 5px;
+							right: 5px;
+							height: 32px;
+							width: 32px;
+							font-size:0.75em;
+							background-color: #ffd18c;
+							border-radius: 100px;
+							display: flex;
+							align-items: center;
+							justify-content: center;
+							color: #5a3c00;
+							font-weight: bold;
+							border: 1px solid #ffbc00;
+						}
 					}
 				}
 			}

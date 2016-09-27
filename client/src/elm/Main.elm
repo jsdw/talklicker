@@ -451,19 +451,21 @@ view model =
                         [ text "Add Entry"]
                     ]
             , div [ class "scrollable" ]
-                [ isDays ?
-                    div [ class "days" ]
-                        [ h2 [ class "days-title" ] [ text "Days" ]
-                        , div [ class "days-inner" ] (List.map (renderDay model) model.days)
-                        ]
-                , div [ class "entries" ]
+                [ div [ class "scrollable-inner" ]
                     [ isDays ?
-                        h2 [ class "entries-title" ] [ text "Entries" ]
-                    , if not isEntries
-                    then
-                        div [ class "no-entries" ] [ text "No entries have been added yet." ]
-                    else
-                        Dnd.view isLoggedIn model.entriesDnd EntriesDnd <| List.map (\e -> (e.id, renderEntry model e)) model.entries
+                        div [ class "days" ]
+                            [ h2 [ class "days-title" ] [ text "Days" ]
+                            , div [ class "days-inner" ] (List.map (renderDay model) model.days)
+                            ]
+                    , div [ class "entries" ]
+                        [ isDays ?
+                            h2 [ class "entries-title" ] [ text "Entries" ]
+                        , if not isEntries
+                        then
+                            div [ class "no-entries" ] [ text "No entries have been added yet." ]
+                        else
+                            Dnd.view isLoggedIn model.entriesDnd EntriesDnd <| List.map (\e -> (e.id, renderEntry model e)) model.entries
+                        ]
                     ]
                 ]
             ]
@@ -480,13 +482,14 @@ view model =
                     ]
                     [ text "Add User"]
                 ]
-            , div [ class "users" ]
-                (Dict.foldr (\k v users -> renderUser model v :: users) [] model.users)
+            , div [ class "scrollable" ]
+                [ div [ class "scrollable-inner" ]
+                    (Dict.foldr (\k v users -> renderUser model v :: users) [] model.users)
+                ]
             ]
-
   in
     div [ class "content" ]
-        [ div [ class ("top"++if model.isAdminMode then " is-admin-mode" else ""++if not isLoggedIn then " padded" else "") ]
+        [ div [ class ("top"++if model.isAdminMode then " is-admin-mode" else "") ]
             [ div [ class "left" ]
                 [ span [ class "logo" ]
                     [ text "TalkLicker"
@@ -516,34 +519,32 @@ view model =
                     [ Loading.indeterminate
                     ]
             ]
-
-            , model.isAdminMode ?
-                Tabs.render Mdl [0,10] model.mdl
-                    [ Tabs.ripple
-                    , Tabs.onSelectTab (\i -> SelectTab (if i == 0 then EntriesTab else UsersTab))
-                    , Tabs.activeTab (if model.tab == EntriesTab then 0 else 1)
-                    , cs "main"
+        , model.isAdminMode ?
+            Tabs.render Mdl [0,10] model.mdl
+                [ Tabs.ripple
+                , Tabs.onSelectTab (\i -> SelectTab (if i == 0 then EntriesTab else UsersTab))
+                , Tabs.activeTab (if model.tab == EntriesTab then 0 else 1)
+                , cs "main"
+                ]
+                [ Tabs.label
+                    [ Options.center ]
+                    [ Icon.i "list"
+                    , Options.span [ css "width" "4px" ] []
+                    , text "Entries"
                     ]
-                    [ Tabs.label
-                        [ Options.center ]
-                        [ Icon.i "list"
-                        , Options.span [ css "width" "4px" ] []
-                        , text "Entries"
-                        ]
-                    , Tabs.label
-                        [ Options.center ]
-                        [ Icon.i "group"
-                        , Options.span [ css "width" "4px" ] []
-                        , text "Users"
-                        ]
+                , Tabs.label
+                    [ Options.center ]
+                    [ Icon.i "group"
+                    , Options.span [ css "width" "4px" ] []
+                    , text "Users"
                     ]
-                    [ case model.tab of
-                        EntriesTab -> entriesTab
-                        UsersTab -> usersTab
-                    ]
-            , not model.isAdminMode ?
-                div [ class "main" ]
-                    [ entriesTab ]
+                ]
+                [ case model.tab of
+                    EntriesTab -> entriesTab
+                    UsersTab -> usersTab
+                ]
+        , not model.isAdminMode ?
+            div [ class "main" ] [ entriesTab ]
         , div [ class "modals" ] (List.map (\modalFunc -> modalFunc (TheModel model)) model.modals)
         , if Dnd.beingDragged model.entriesDnd
             then draggingEntry model
