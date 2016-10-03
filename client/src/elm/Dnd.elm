@@ -15,17 +15,17 @@ import Html.Keyed as Keyed
 --
 
 -- hide our model's internal state:
-type Model comparableId = Model (TheModel comparableId)
+type Model uniqueId = Model (TheModel uniqueId)
 
-type alias TheModel comparableId =
-    { selectedId : Maybe comparableId
-    , dragPosition : Maybe (DragPosition comparableId)
+type alias TheModel uniqueId =
+    { selectedId : Maybe uniqueId
+    , dragPosition : Maybe (DragPosition uniqueId)
     , dragInProgress : Bool
     , startXY : Mouse.Position
     , currentXY : Mouse.Position
     }
 
-model : Model comparableId
+model : Model uniqueId
 model = Model
     { selectedId = Nothing
     , dragPosition = Nothing
@@ -34,16 +34,16 @@ model = Model
     , currentXY = { x = 0, y = 0 }
     }
 
-draggedId : Model comparableId -> Maybe comparableId
+draggedId : Model uniqueId -> Maybe uniqueId
 draggedId (Model m) = m.selectedId
 
-beingDragged : Model comparableId -> Bool
+beingDragged : Model uniqueId -> Bool
 beingDragged (Model m) = m.dragInProgress
 
-position : Model comparableId -> Mouse.Position
+position : Model uniqueId -> Mouse.Position
 position (Model m) = m.currentXY
 
-delta : Model comparableId -> Mouse.Position
+delta : Model uniqueId -> Mouse.Position
 delta (Model m) = { x = m.currentXY.x - m.startXY.x, y = m.currentXY.y - m.startXY.y }
 
 exceedsThreshold : Mouse.Position -> Mouse.Position -> Bool
@@ -58,28 +58,28 @@ exceedsThreshold posA posB =
 -- Update the state accoding to these events:
 --
 
-type Msg comparableId
-    = DragStart comparableId Mouse.Position
-    | DragOver (Maybe (DragPosition comparableId))
+type Msg uniqueId
+    = DragStart uniqueId Mouse.Position
+    | DragOver (Maybe (DragPosition uniqueId))
     | DragMove Mouse.Position
     | DragComplete
     | DragCancel
     | Noop
 
-type Act comparableId
-    = MovedTo comparableId (DragPosition comparableId)
+type Act uniqueId
+    = MovedTo uniqueId (DragPosition uniqueId)
 
 -- a tuple of the things we're between at present,
 -- which could be Ids or beginning/end of list.
-type alias DragPosition comparableId = (Position comparableId, Position comparableId)
+type alias DragPosition uniqueId = (Position uniqueId, Position uniqueId)
 
-type Position comparableId
+type Position uniqueId
     = AtBeginning
-    | AtId comparableId
+    | AtId uniqueId
     | AtEnd
 
 
-update : Msg comparableId -> Model comparableId -> (Model comparableId, Maybe (Act comparableId))
+update : Msg uniqueId -> Model uniqueId -> (Model uniqueId, Maybe (Act uniqueId))
 update msg (Model model) = case msg of
     DragStart id pos ->
         { model | selectedId = Just id, startXY = pos, currentXY = pos, dragInProgress = False } !! Nothing
@@ -99,10 +99,10 @@ update msg (Model model) = case msg of
     Noop ->
         model !! Nothing
 
-(!!) : TheModel comparableId -> Maybe (Act comparableId) -> (Model comparableId, Maybe (Act comparableId))
+(!!) : TheModel uniqueId -> Maybe (Act uniqueId) -> (Model uniqueId, Maybe (Act uniqueId))
 (!!) model act = (Model model, act)
 
-cancelDrag : TheModel comparableId -> TheModel comparableId
+cancelDrag : TheModel uniqueId -> TheModel uniqueId
 cancelDrag model =
     { model | selectedId = Nothing, dragPosition = Nothing, dragInProgress = False }
 
@@ -110,7 +110,7 @@ cancelDrag model =
 -- Subscribe to mouseUps as necessary to keep DnD state consistent.
 --
 
-sub : Model comparableId -> Sub (Msg comparableId)
+sub : Model uniqueId -> Sub (Msg uniqueId)
 sub (Model model) = case model.selectedId of
     Nothing -> Sub.none
     Just _ -> Sub.batch
@@ -126,7 +126,7 @@ sub (Model model) = case model.selectedId of
 
 type alias Options = Bool
 
-view : Options -> Model comparableId -> (Msg comparableId -> parentMsg) -> List (comparableId, Html parentMsg) -> Html parentMsg
+view : Options -> Model uniqueId -> (Msg uniqueId -> parentMsg) -> List (uniqueId, Html parentMsg) -> Html parentMsg
 view allowDnd (Model model) pm items =
   let
     -- drag start occurs

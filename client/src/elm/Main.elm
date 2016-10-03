@@ -111,8 +111,14 @@ type TheModel = TheModel Model
 -- the type of key we are using for DnD things.
 -- this is what we provide to DnD and get back on
 -- DnD finish.
-type alias EntryDndKey = String
+type alias EntryDndKey = (DnDLocation, String)
 
+-- where is the DnD item? in the entries list, or
+-- in a day with some id and at some index corresponding to
+-- a list of entries in the day
+type DnDLocation = InEntriesList | InDay String Int
+
+-- what page are we viewing?
 type Tab = EntriesTab | UsersTab
 
 --
@@ -190,7 +196,7 @@ update msg model = case logMsg msg of
       let
         (dnd, mAct) = Dnd.update msg model.entriesDnd
         (actedModel, actedCmd) = case mAct of
-            Just (Dnd.MovedTo id (before, after)) -> moveEntryTo id before after model
+            Just (Dnd.MovedTo (dndLocation, id) (before, after)) -> moveEntryTo id before after model
             Nothing -> model ! []
       in
         { actedModel | entriesDnd = dnd } ! [ actedCmd ]
@@ -276,7 +282,7 @@ moveEntryTo id before after model =
       in if List.length newList /= List.length entries + 1 then model.entries else newList
     moved entry = case (before, after) of
         (_, Dnd.AtEnd)  -> (entries ++ [entry], Entries.AtEnd)
-        (_, Dnd.AtId b) -> (tryAddBeforeId entry b, Entries.AtBefore b)
+        (_, Dnd.AtId (dndLocation,b)) -> (tryAddBeforeId entry b, Entries.AtBefore b)
         _               -> Debug.crash ("impossible position "++toString (before,after))
   in
     case entrySingleton of
@@ -464,7 +470,7 @@ view model =
                         then
                             div [ class "no-entries" ] [ text "No entries have been added yet." ]
                         else
-                            Dnd.view isLoggedIn model.entriesDnd EntriesDnd <| List.map (\e -> (e.id, renderEntry model e)) model.entries
+                            Dnd.view isLoggedIn model.entriesDnd EntriesDnd <| List.map (\e -> ((InEntriesList, e.id), renderEntry model e)) model.entries
                         ]
                     ]
                 ]
@@ -554,7 +560,7 @@ view model =
 draggingEntry : Model -> Html Msg
 draggingEntry model =
   let
-    draggedId = Dnd.draggedId model.entriesDnd
+    draggedId = Maybe.map snd (Dnd.draggedId model.entriesDnd)
     entry = case List.filter (\e -> Just e.id == draggedId) model.entries of
         [e] -> renderEntry model e
         _ -> text ""
