@@ -296,6 +296,18 @@ body > .content {
 			padding-top: 1.5em;
 			padding-bottom: 0.5em;
 			flex-shrink: 0;
+			position: relative;
+			z-index: 1;
+
+			&::after {
+				content: '';
+				height: 1em;
+				width: 100%;
+				position: absolute;
+				bottom: -1em;
+				left: 0;
+				background-image: linear-gradient(to bottom, white, rgba(0,0,0,0));
+			}
 
 			> *:not(:last-child) {
 				margin-right: 10px;
@@ -396,6 +408,10 @@ body > .content {
 						padding: 0.5em 1em;
 						position: relative;
 						flex-shrink: 0;
+
+						&:first-child {
+							margin-top: 1.5em;
+						}
 
 						&.user-admin {
 							border-left: 8px solid $adminOrange;
@@ -516,7 +532,7 @@ body > .content {
 			bottom: 0;
 			left: 0;
 			right: 0;
-			z-index: 0;
+			z-index: 1000;
 			background-color: rgba(0,0,0,0.4);
 
 			display: flex;
