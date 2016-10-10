@@ -25,7 +25,6 @@ type alias Model =
     { id : String
     , title : String
     , description : String
-    , entries : List String
     , saving : Bool
     , error : Maybe DayError
 
@@ -40,7 +39,6 @@ model =
     { id = ""
     , title = ""
     , description = ""
-    , entries = []
     , saving = False
     , error = Nothing
 
@@ -56,7 +54,6 @@ prepareForAdd model =
     | id = ""
     , title = ""
     , description = ""
-    , entries = []
     , saving = False
     , error = Nothing
     , removing = False
@@ -67,8 +64,7 @@ prepareForEdit day model =
     { model
     | id = day.id
     , title = day.title
-    , description = day.description
-    , entries = day.entries
+    , description = Days.descriptionPartsToString day.description
     , saving = False
     , error = Nothing
     , removing = False
@@ -146,11 +142,11 @@ update msg model = case msg of
 
 doAddDay : Model -> Cmd Msg
 doAddDay model =
-    Task.perform DayFailed AddDaySuccess (Days.add model)
+    Task.perform DayFailed AddDaySuccess (Days.add { model | description = Days.descriptionStringToParts model.description })
 
 doEditDay : Model -> Cmd Msg
 doEditDay model =
-    Task.perform DayFailed EditDaySuccess (Days.set model)
+    Task.perform DayFailed EditDaySuccess (Days.set { model | description = Days.descriptionStringToParts model.description })
 
 doRemoveDay : String -> Cmd Msg
 doRemoveDay dayId =

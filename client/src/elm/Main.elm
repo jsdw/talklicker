@@ -8,6 +8,7 @@ import Dict exposing (Dict)
 import List
 import String
 import Markdown
+import Set exposing (Set)
 --import Process
 --import Time
 
@@ -46,7 +47,8 @@ initialModel =
     , isAdminMode = False
 
     , tab = EntriesTab
-    , entries = []
+    , entries = Dict.empty
+    , entryIds = []
     , days = []
     , entriesDnd = Dnd.model
     , users = Dict.empty
@@ -77,9 +79,10 @@ type alias Model =
     , isAdminMode : Bool
 
     , tab : Tab
-    , entries : List Entry
+    , entryIds : List String
+    , entries : Dict String Entry
     , days : List Day
-    , entriesDnd : Dnd.Model EntryDndKey
+    , entriesDnd : Dnd.Model DnDLocation EntryDndKey
     , users : Dict String User
     , modals : List (TheModel -> Html Msg)
     , error : String
@@ -108,10 +111,9 @@ type alias Model =
 -- hiding itself inside a real type:
 type TheModel = TheModel Model
 
--- the type of key we are using for DnD things.
--- this is what we provide to DnD and get back on
--- DnD finish.
-type alias EntryDndKey = (DnDLocation, String)
+-- This is what we use to identify indicidual DND items;
+-- their IDs.
+type alias EntryDndKey = String
 
 -- where is the DnD item? in the entries list, or
 -- in a day with some id and at some index corresponding to
@@ -132,7 +134,7 @@ type Msg
     | LogOut
     | DoLogout
 
-    | EntriesDnd (Dnd.Msg EntryDndKey)
+    | EntriesDnd (Dnd.Msg DnDLocation EntryDndKey)
 
     -- admin mode
     | ToggleAdminMode
@@ -180,7 +182,8 @@ update msg model = case logMsg msg of
     ApiError error ->
         { model | loading = False, error = toString error } ! []
     UpdateCoreDetails core ->
-        showSetPasswordIfNeeded { model | loading = False, user = core.currentUser, entries = core.entries, users = core.users, days = core.days }
+        showSetPasswordIfNeeded
+            (setEntries core.entries { model | loading = False, user = core.currentUser, users = core.users, days = core.days })
             ! [] -- [ Task.perform ApiError UpdateCoreDetails <| Process.sleep (30 * Time.second) `Task.andThen` \_ -> getEverything ]
     LogOut ->
         showModal logoutModal model ! []
@@ -196,7 +199,7 @@ update msg model = case logMsg msg of
       let
         (dnd, mAct) = Dnd.update msg model.entriesDnd
         (actedModel, actedCmd) = case mAct of
-            Just (Dnd.MovedTo (dndLocation, id) (before, after)) -> moveEntryTo id before after model
+            Just (Dnd.MovedTo from to) -> moveEntryTo from to model
             Nothing -> model ! []
       in
         { actedModel | entriesDnd = dnd } ! [ actedCmd ]
@@ -272,27 +275,35 @@ update msg model = case logMsg msg of
         (model, Cmd.none)
 
 -- handle moving an entry given DND finish
-moveEntryTo : String -> Dnd.Position EntryDndKey -> Dnd.Position EntryDndKey -> Model -> (Model, Cmd Msg)
-moveEntryTo id before after model =
-  let
-    entrySingleton = List.filter (\e -> e.id == id) model.entries
-    entries = List.filter (\e -> e.id /= id) model.entries
-    tryAddBeforeId entry id =
-      let newList = List.foldr (\e out -> if e.id == id then entry :: e :: out else e :: out) [] entries
-      in if List.length newList /= List.length entries + 1 then model.entries else newList
-    moved entry = case (before, after) of
-        (_, Dnd.AtEnd)  -> (entries ++ [entry], Entries.AtEnd)
-        (_, Dnd.AtId (dndLocation,b)) -> (tryAddBeforeId entry b, Entries.AtBefore b)
-        _               -> Debug.crash ("impossible position "++toString (before,after))
-  in
-    case entrySingleton of
-        [entry] ->
-          let
-            (entries', ePos) = moved entry
-            orderApi = Task.perform (always Noop) (always Noop) (Entries.move id ePos)
-          in
-            { model | entries = entries' } ! [ orderApi ]
-        _ -> model ! [] -- entry not found
+moveEntryTo : (DnDLocation, String) -> (DnDLocation, Dnd.Position EntryDndKey, Dnd.Position EntryDndKey) -> Model -> (Model, Cmd Msg)
+moveEntryTo (fromListId,id) (toListId, before, after) model =
+    Debug.log (toString ((fromListId,id),(toListId, before, after))) model ! []
+    -- 1. look at fromListId and id and remove ID from that location.
+    -- 2. look at toListId and after, remove ID if it's in toListId and then add it to new place.
+    -- return model with entryIds and days updated to reflect change. call Day.set on the day or Entries.move on the entry as needed.
+
+    -- if toListId is InEntriesList:
+    --   filter ID from entry IDs and append to end if after is AtEnd, else append before
+
+--   let
+--     entrySingleton = List.filter (\eid -> eid == id) model.entryIds
+--     entryIds = List.filter (\eid -> eid /= id) model.entryIds
+--     tryAddBeforeId entryId id =
+--       let newList = List.foldr (\eid out -> if eid == id then entryId :: eid :: out else eid :: out) [] entryIds
+--       in if List.length newList /= List.length entryIds + 1 then model.entryIds else newList
+--     moved entry = case (before, after) of
+--         (_, Dnd.AtEnd)  -> (entryIds ++ [entry], Entries.AtEnd)
+--         (_, Dnd.AtId (dndLocation,b)) -> (tryAddBeforeId entry b, Entries.AtBefore b)
+--         _               -> Debug.crash ("impossible position "++toString (before,after))
+--   in
+--     case entrySingleton of
+--         [entryId] ->
+--           let
+--             (entryIds', ePos) = moved entryId
+--             orderApi = Task.perform (always Noop) (always Noop) (Entries.move id ePos)
+--           in
+--             { model | entryIds = entryIds' } ! [ orderApi ]
+--         _ -> model ! [] -- entry not found
 
 -- handle updates to the userModal
 handleUserUpdate : UserModal.Msg -> Model -> (Model, Cmd Msg)
@@ -325,17 +336,40 @@ handleEntryUpdate msg model =
     (entryModal', act, cmd) = EntryModal.update msg model.entryModal
     actedModel = case act of
         Just (EntryModal.Added entry) ->
-            closeTopModal { model | entries = model.entries ++ [entry] }
+            closeTopModal (addEntry entry model)
         Just (EntryModal.Updated entry) ->
-            closeTopModal { model | entries = List.map (\e -> if e.id == entry.id then entry else e) model.entries }
+            closeTopModal (updateEntry entry model)
         Just (EntryModal.Removed entryId) ->
-            closeTopModal { model | entries = List.filter (\e -> e.id /= entryId) model.entries }
+            closeTopModal (removeEntry entryId model)
         Just EntryModal.CloseMe ->
             closeTopModal model
         Nothing ->
             model
   in
     { actedModel | entryModal = entryModal' } ! [Cmd.map EntryModal cmd]
+
+setEntries : List Entry -> Model -> Model
+setEntries entryList model =
+  let
+    entryIdsInDays = List.foldl (\day s -> Days.descriptionPartsToEntryIds day.description |> Set.fromList |> Set.union s) Set.empty model.days
+    (entryMap, entryIds) = List.foldr folder (Dict.empty,[]) entryList
+    folder = \entry (entryMap',entryIds') ->
+      let
+        entryIds = if Set.member entry.id entryIdsInDays then entryIds' else entry.id :: entryIds'
+        entryMap = Dict.insert entry.id entry entryMap'
+      in
+        (entryMap, entryIds)
+  in
+    { model | entries = entryMap, entryIds = entryIds }
+
+removeEntry : String -> Model -> Model
+removeEntry id model = { model | entries = Dict.remove id model.entries, entryIds = List.filter (\eid -> eid /= id) model.entryIds }
+
+updateEntry : Entry -> Model -> Model
+updateEntry entry model = { model | entries = Dict.insert entry.id entry model.entries }
+
+addEntry : Entry -> Model -> Model
+addEntry entry model = { model | entries = Dict.insert entry.id entry model.entries, entryIds = model.entryIds ++ [entry.id] }
 
 handleDayUpdate : DayModal.Msg -> Model -> (Model, Cmd Msg)
 handleDayUpdate msg model =
@@ -433,7 +467,7 @@ view model =
         Just u -> { fullName = u.fullName, userType = u.userType }
     isAdmin = details.userType == Admin
     isDays = model.days /= []
-    isEntries = model.entries /= []
+    isEntries = model.entryIds /= []
 
     -- entries tab with list of entries
     entriesTab =
@@ -470,7 +504,8 @@ view model =
                         then
                             div [ class "no-entries" ] [ text "No entries have been added yet." ]
                         else
-                            Dnd.view isLoggedIn model.entriesDnd EntriesDnd <| List.map (\e -> ((InEntriesList, e.id), renderEntry model e)) model.entries
+                            Dnd.view { enabled = isLoggedIn, listId = InEntriesList } model.entriesDnd EntriesDnd
+                                <| List.map (\eid -> (eid, renderEntry model eid)) model.entryIds
                         ]
                     ]
                 ]
@@ -560,10 +595,8 @@ view model =
 draggingEntry : Model -> Html Msg
 draggingEntry model =
   let
-    draggedId = Maybe.map snd (Dnd.draggedId model.entriesDnd)
-    entry = case List.filter (\e -> Just e.id == draggedId) model.entries of
-        [e] -> renderEntry model e
-        _ -> text ""
+    draggedId = Dnd.draggedId model.entriesDnd |> Maybe.withDefault ""
+    entry = renderEntry model draggedId
     pos = Dnd.position model.entriesDnd
     css =
         [ ("position","absolute")
@@ -594,6 +627,17 @@ profileMenu model =
 
 renderDay : Model -> Day -> Html Msg
 renderDay model d =
+  let
+    tryRenderDndEntry idx entryId arr = case Dict.get entryId model.entries of
+        Nothing -> arr
+        Just entry -> (entryId, renderEntry model entryId) :: arr
+    renderPart idx part = case part of
+        Days.MarkdownPart str ->
+            markdown [ class "markdown" ] str
+        Days.EntriesPart entryIds ->
+            Dnd.view { enabled = model.isAdminMode, listId = InDay d.id idx } model.entriesDnd EntriesDnd
+                <| List.foldr (tryRenderDndEntry idx) [] entryIds
+  in
     div [ class "day" ]
         [ div [ class "title" ]
             [ if model.isAdminMode
@@ -601,23 +645,36 @@ renderDay model d =
                 else div [ class "text" ] [ text d.title ]
             ]
         , div [ class "description" ]
-            [ markdown [class "markdown"] d.description ]
+            (List.indexedMap renderPart d.description)
         ]
 
-renderEntry : Model -> Entry -> Html Msg
-renderEntry model e =
+renderDayDescription : Day -> Html Msg
+renderDayDescription day = text <| Days.descriptionPartsToString day.description
+
+renderEntry : Model -> String -> Html Msg
+renderEntry model entryId =
   let
-    isMine = Maybe.map .name model.user == Just e.user
-    entryClass = case e.entryType of
+    entry = Dict.get entryId model.entries |> Maybe.withDefault
+        { id = ""
+        , user = "Nobody"
+        , duration = 0
+        , name = "Invalid Entry: " ++ entryId
+        , description = "The entry ID asked to be turned into an entry here does not exist."
+        , entryType = Talk
+        , created = 0
+        , modified = 0
+        }
+    isMine = Maybe.map .name model.user == Just entry.user
+    entryClass = case entry.entryType of
         Talk -> "entry-talk"
         Project -> "entry-project"
-    entryIcon = case e.entryType of
+    entryIcon = case entry.entryType of
         Talk -> Icon.i "insert_emoticon"
         Project -> Icon.i "keyboard"
-    entryUser = case Dict.get e.user model.users of
+    entryUser = case Dict.get entry.user model.users of
         Nothing -> "an Unknown User"
         Just u -> u.fullName
-    entryHours = toFloat e.duration / 3600000
+    entryHours = toFloat entry.duration / 3600000
     markdownOpts =
         let d = Markdown.defaultOptions
         in { d | sanitize = True }
@@ -626,10 +683,10 @@ renderEntry model e =
         [ div [ class "title" ]
             [ entryIcon
             , if model.isAdminMode || isMine
-                then a [ class "text link", onClick (ShowEditEntryModal e) ] [ text e.name ]
-                else div [ class "text" ] [ text e.name ]
+                then a [ class "text link", onClick (ShowEditEntryModal entry) ] [ text entry.name ]
+                else div [ class "text" ] [ text entry.name ]
             ]
-        , div [ class "description" ] [ markdown [class "markdown"] e.description ]
+        , div [ class "description" ] [ markdown [class "markdown"] entry.description ]
         , div [ class "user"] [ text ("By " ++ entryUser) ]
         , div [ class "duration" ] [ span [] [ text <| (toString entryHours)++"h" ] ]
         ]

@@ -350,6 +350,9 @@ body > .content {
 
 						.day {
 							@include day;
+							> .description .entry {
+								@include entry;
+							}
 						}
 					}
 

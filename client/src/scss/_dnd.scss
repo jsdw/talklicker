@@ -10,9 +10,22 @@
     }
 
     > .dnd-spacer {
+
         &.active {
             height: 50px;
             &.near-dragged { height: 0px; }
+        }
+    }
+
+    &.active > .dnd-spacer.singleton {
+        border: 4px dashed #cbcbff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        &::after {
+            content: 'DROP TO ADD ENTRY';
+            color: #cbcbff;
+            font-weight: bold;
         }
     }
 
@@ -35,6 +48,10 @@
     }
 
     &.active {
+
+        > .dnd-spacer.singleton {
+            height: 25px;
+        }
 
         > .dnd-item {
             > .dnd-item-before {
