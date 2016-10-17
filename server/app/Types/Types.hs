@@ -16,6 +16,7 @@ module Types.Types (
     AddEntryInput(..),
     EntryInput(..),
     EntryPosition(..),
+    EntryRel(..),
     UserInput(..),
     AddDayInput(..),
     DayInput(..),
@@ -138,11 +139,26 @@ data EntryInput = EntryInput
 instance FromJSON EntryInput where parseJSON = fromPrefix "ei"
 
 data EntryPosition
-    = AtBefore Id
+    = AtId Id
+    | AtBeginning
     | AtEnd
+    deriving (Eq, Show)
 
 instance FromHttpApiData EntryPosition where
-    parseUrlPiece text = Right $ if text == "end" then AtEnd else AtBefore (Id $ Text.unpack text)
+    parseUrlPiece text = Right $
+        if text == "end" then AtEnd
+        else if text == "beginning" then AtBeginning
+        else AtId (Id $ Text.unpack text)
+
+data EntryRel
+    = RelBefore
+    | RelAfter
+    deriving (Eq, Show)
+
+instance FromHttpApiData EntryRel where
+    parseUrlPiece "before" = Right RelBefore
+    parseUrlPiece "after" = Right RelAfter
+    parseUrlPiece _ = Left "Relative position must be 'before' or 'after'"
 
 data UserInput = UserInput
     { uiFullName :: Maybe String

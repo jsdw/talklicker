@@ -25,6 +25,7 @@ import Types
 import Servant
 import Application
 import Middleware
+import Debug.Trace
 
 type UserSessions = Sessions String
 type UserSession = Session User
@@ -175,22 +176,28 @@ setEntryOrder _ ids = do
 -- Move entry to new location before another (less chance of races than above)
 --
 
-type MoveEntryTo = HasSession :> "move" :> Capture "entryId" Id :> "before" :> Capture "entryPosition" EntryPosition :> Post '[JSON] ()
+type MoveEntryTo = HasSession :> "move" :> Capture "entryId" Id :> Capture "entryRelative" EntryRel :> Capture "entryPosition" EntryPosition :> Post '[JSON] ()
 
-moveEntryTo :: UserSession -> Id -> EntryPosition -> Application ()
-moveEntryTo _ eId newPosition = do
+moveEntryTo :: UserSession -> Id -> EntryRel -> EntryPosition -> Application ()
+moveEntryTo _ entryIdToMove relPosition newPosition = do
 
+    --relatively, entry can be before or after the position. the position itself is either
+    --beginning, end, or some ID to be before or after.
     let doMove entries =
           let
-            (entrySingleton, rest) = List.partition ((== eId) . entryId) entries
-            putBefore nextId entry e out = if entryId e == nextId then entry : e : out else e : out
+            (entrySingleton, otherEntries) = List.partition ((== entryIdToMove) . entryId) entries
+            putBefore eId entry =
+                foldr (\e es -> if entryId e == eId then entry : e : es else e : es) [] otherEntries
+            putAfter eId entry =
+                foldr (\e es -> if entryId e == eId then e : entry : es else e : es) [] otherEntries
             newEntries entry = case newPosition of
-                AtEnd -> rest ++ [entry]
-                AtBefore nextId -> foldr (putBefore nextId entry) [] rest
+                AtEnd -> otherEntries ++ [entry]
+                AtBeginning -> entry : otherEntries
+                AtId relEntryId -> if relPosition == RelBefore then putBefore relEntryId entry else putAfter relEntryId entry
           in
             case entrySingleton of
-                [] -> entries -- entry not found
-                entry : _ -> let n = newEntries entry in if length n /= length entries then entries else n
+                [entry] -> let n = newEntries entry in if length n /= length entries then trace "problem moving entry; length mismatch" entries else n
+                _ -> trace "problem moving entry; id not found" entries -- entry not found or some odd issue!
 
     modifyDb $ \everything ->
         let e = over allEntriesL doMove everything

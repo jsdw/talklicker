@@ -130,15 +130,21 @@ type alias EntryAddable a =
 
 type EntryPosition
     = AtBefore String
+    | AtAfter String
+    | AtBeginning
     | AtEnd
 
-posToString : EntryPosition -> String
+posToString : EntryPosition -> (String, String)
 posToString pos = case pos of
-    AtBefore s -> s
-    AtEnd -> "end"
+    AtAfter s   -> ("after", s)
+    AtBefore s  -> ("before", s)
+    AtEnd       -> ("before", "end")
+    AtBeginning -> ("after", "beginning")
 
 move : String -> EntryPosition -> Task Error ()
-move id pos = request Post ("entries" :> "move" :> id :> "before" :> posToString pos) Nothing noResult
+move id pos =
+  let (rel, relId) = posToString pos
+  in request Post ("entries" :> "move" :> id :> rel :> relId) Nothing noResult
 
 order : List String -> Task Error ()
 order ids = request Post ("entries" :> "order") (Just <| Enc.list <| List.map Enc.string ids) noResult

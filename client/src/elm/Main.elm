@@ -277,33 +277,82 @@ update msg model = case logMsg msg of
 -- handle moving an entry given DND finish
 moveEntryTo : (DnDLocation, String) -> (DnDLocation, Dnd.Position EntryDndKey, Dnd.Position EntryDndKey) -> Model -> (Model, Cmd Msg)
 moveEntryTo (fromListId,id) (toListId, before, after) model =
-    Debug.log (toString ((fromListId,id),(toListId, before, after))) model ! []
-    -- 1. look at fromListId and id and remove ID from that location.
-    -- 2. look at toListId and after, remove ID if it's in toListId and then add it to new place.
-    -- return model with entryIds and days updated to reflect change. call Day.set on the day or Entries.move on the entry as needed.
-
-    -- if toListId is InEntriesList:
-    --   filter ID from entry IDs and append to end if after is AtEnd, else append before
-
---   let
---     entrySingleton = List.filter (\eid -> eid == id) model.entryIds
---     entryIds = List.filter (\eid -> eid /= id) model.entryIds
---     tryAddBeforeId entryId id =
---       let newList = List.foldr (\eid out -> if eid == id then entryId :: eid :: out else eid :: out) [] entryIds
---       in if List.length newList /= List.length entryIds + 1 then model.entryIds else newList
---     moved entry = case (before, after) of
---         (_, Dnd.AtEnd)  -> (entryIds ++ [entry], Entries.AtEnd)
---         (_, Dnd.AtId (dndLocation,b)) -> (tryAddBeforeId entry b, Entries.AtBefore b)
---         _               -> Debug.crash ("impossible position "++toString (before,after))
---   in
---     case entrySingleton of
---         [entryId] ->
---           let
---             (entryIds', ePos) = moved entryId
---             orderApi = Task.perform (always Noop) (always Noop) (Entries.move id ePos)
---           in
---             { model | entryIds = entryIds' } ! [ orderApi ]
---         _ -> model ! [] -- entry not found
+  let
+    -- turn task to cmd, ignore results
+    noopCmd task =
+        Task.perform (always Noop) (always Noop) task
+    -- update backend knowledge of dayId in days list.
+    setDayCmd dayId days =
+        let mDay = List.foldl (\d m -> if d.id == dayId then Just d else m) Nothing days
+        in case mDay of
+            Nothing -> Debug.log ("Tried to tell backend about day "++dayId++" but it doesnt exist") Cmd.none
+            Just day -> noopCmd <| Days.set day
+    -- remove entry from the list given.
+    removeFromEntries entryIds =
+        List.filter (\eid -> eid /= id) entryIds
+    -- add entry to list given based on before and after; will try to use
+    -- either of these (incase one is the entry being moved!) and will output
+    -- a suitable command for the backend on completion.
+    addToEntries entryIds =
+        case (before,after) of
+            (Dnd.AtBeginning, _) ->
+                (id :: entryIds, noopCmd <| Entries.move id Entries.AtBeginning)
+            (_, Dnd.AtEnd) ->
+                (entryIds ++ [id], noopCmd <| Entries.move id Entries.AtEnd)
+            (Dnd.AtId id1, Dnd.AtId id2) ->
+                addBetween id1 id2 entryIds
+            badPosition ->
+                Debug.log ("impossible DND position: " ++ toString badPosition) (entryIds, Cmd.none)
+    -- given some entry IDs, add the id moved between the first and second id given.
+    -- copes with either of these not actually existing in the list.
+    addBetween id1 id2 entryIds =
+      let
+        fn = \eid (bAdded, ids, cmd) ->
+            if bAdded then (True, eid :: ids, cmd)
+            else if eid == id1 then (True, eid :: id :: ids, noopCmd <| Entries.move id <| Entries.AtAfter eid)
+            else if eid == id2 then (True, id :: eid :: ids, noopCmd <| Entries.move id <| Entries.AtBefore eid)
+            else (False, eid :: ids, cmd)
+        (_, newEntries, cmd) = List.foldr fn (False,[], Cmd.none) entryIds
+      in
+        (newEntries, cmd)
+    -- modify entries in the day pointed at by ID given list of days using the function given,
+    -- and return the modified list of days back.
+    modifyEntriesInDay dayId idx modifyFn days =
+      let
+        modifyAtPart partIdx part = if partIdx /= idx then part else case part of
+            Days.EntriesPart es -> Days.EntriesPart (modifyFn es)
+            other -> Debug.log ("asked to modify entries in day but index wrong " ++ toString other) other
+        doModify day =
+            { day | description = List.indexedMap modifyAtPart day.description }
+      in
+        List.map (\day -> if day.id == dayId then doModify day else day) days
+    -- remove or add entries from days using the modify function above, returning the new days.
+    removeFromDay dayId idx days =
+        modifyEntriesInDay dayId idx removeFromEntries days
+    addToDay dayId idx days =
+        modifyEntriesInDay dayId idx (addToEntries >> fst) days
+  in
+    -- perform drop action depending on where thing  was moved from and to, ie moved within
+    -- entries list, or moved into a day or between days or out of a day.
+    case (fromListId, toListId) of
+        (InEntriesList, InEntriesList) ->
+            let (newEntryIds, moveCmd) = model.entryIds |> removeFromEntries |> addToEntries
+            in { model | entryIds = newEntryIds } ! [ moveCmd ]
+        (InEntriesList, InDay dayId idx) ->
+            let
+              newEntryIds = removeFromEntries model.entryIds
+              newDays = addToDay dayId idx model.days
+            in { model | entryIds = newEntryIds, days = newDays } ! [ setDayCmd dayId newDays ]
+        (InDay dayId idx, InEntriesList) ->
+            let
+              newDays = removeFromDay dayId idx model.days
+              (newEntryIds, addEntryCmd) = addToEntries model.entryIds
+            in { model | entryIds = newEntryIds, days = newDays } ! [ addEntryCmd, setDayCmd dayId newDays ]
+        (InDay dayId1 idx1, InDay dayId2 idx2) ->
+            let
+              newDays = removeFromDay dayId1 idx1 model.days |> addToDay dayId2 idx2
+              dayCmds = if dayId1 == dayId2 then setDayCmd dayId1 newDays else Cmd.batch [setDayCmd dayId1 newDays, setDayCmd dayId2 newDays]
+            in { model | days = newDays } ! [ dayCmds ]
 
 -- handle updates to the userModal
 handleUserUpdate : UserModal.Msg -> Model -> (Model, Cmd Msg)
