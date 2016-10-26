@@ -1,4 +1,5 @@
-.markdown {
+// restrict markdown in entries to be small and compact:
+.entry > .description > .markdown {
 
     h1, h2, h3, h4, h5, h6 {
         font-size: 1em;
@@ -13,5 +14,19 @@
         margin-top: 0.5em;
         margin-bottom: 0.5em;
     }
+
+}
+
+// be much less restrictive of markdown in days:
+.day > .description > .markdown {
+
+    h1 { font-size: 2em }
+    h2 { font-size: 1.7em }
+    h3 { font-size: 1.5em }
+    h4, h5, h6 { font-size: 1.2em }
+
+    h1,h2,h3,h4,h5,h6 { margin: 0.5em 0 }
+
+    p { margin-bottom: 0.2em }
 
 }
