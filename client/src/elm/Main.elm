@@ -697,9 +697,6 @@ renderDay model d =
             (List.indexedMap renderPart d.description)
         ]
 
-renderDayDescription : Day -> Html Msg
-renderDayDescription day = text <| Days.descriptionPartsToString day.description
-
 renderEntry : Model -> String -> Html Msg
 renderEntry model entryId =
   let
