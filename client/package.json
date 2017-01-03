@@ -25,7 +25,7 @@
   "homepage": "https://github.com/jsdw/talklicker",
   "devDependencies": {
     "autoprefixer": "^6.4.0",
-    "node-sass": "^3.8.0",
+    "node-sass": "^3.13.1",
     "onchange": "^2.5.0"
   }
 }
