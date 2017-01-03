@@ -5,68 +5,88 @@ import Json.Encode as JsonEnc exposing (Value, null)
 import Json.Decode as JsonDec exposing (Decoder)
 import Task exposing (Task)
 
+
 (:>) : String -> String -> String
-(:>) a b = a ++ "/" ++ b
+(:>) a b =
+    a ++ "/" ++ b
+
 
 noResult : Decoder ()
-noResult = (JsonDec.succeed ())
+noResult =
+    (JsonDec.succeed ())
 
-type Verb = Get | Post | Delete
+
+type Verb
+    = Get
+    | Post
+    | Delete
+
 
 type Error
-    = BasicError Http.RawError
-    | DecodeError String
+    = DecodeError String
     | ServerError Int String
     | ClientError Int String
+    | BadNetworkError
+    | OtherError String
 
-type alias Path = String
+
+type alias Path =
+    String
+
 
 request : Verb -> Path -> Maybe Value -> Decoder res -> Task Error res
 request verb path mData decoder =
-  let
+    let
+        req =
+            Http.toTask (Http.request
+                { method = verbToString verb
+                , headers = []
+                , url = path
+                , body = reqBody
+                , expect = Http.expectJson decoder
+                , timeout = Nothing
+                , withCredentials = False })
 
-    headers =
-        [ ("Content-Type", "application/json")
-        ]
+        reqBody =
+            case mData of
+                Nothing ->
+                    Http.emptyBody
 
-    req = Http.send Http.defaultSettings
-        { verb = verbToString verb
-        , headers = headers
-        , url = path
-        , body = reqBody
-        }
+                Just data ->
+                    Http.jsonBody data
 
-    reqBody = case mData of
-        Nothing -> Http.empty
-        Just data -> Http.string (JsonEnc.encode 0 data)
+        handleError err =
+            case err of
+                Http.BadPayload err _ ->
+                    Task.fail (DecodeError err)
 
-    handleResponse res' =
-      let
-        bodyString = case res'.value of
-            Http.Text s -> s
-            _ -> ""
+                Http.BadStatus res ->
+                    if res.status.code >= 400 && res.status.code < 500 then
+                        Task.fail (ClientError res.status.code res.status.message)
+                    else
+                        Task.fail (ServerError res.status.code res.status.message)
 
-        handleResponseError res =
-            if res.status >= 200 && res.status < 300 then Task.succeed res
-            else if res.status >= 400 && res.status < 500 then Task.fail (ClientError res.status res.statusText)
-            else Task.fail (ServerError res.status res.statusText)
+                Http.BadUrl url ->
+                    Task.fail (OtherError ("invalid url: "++url))
 
-        handleJsonDecoding res = case JsonDec.decodeString decoder bodyString of
-            Err e -> Task.fail (DecodeError e)
-            Ok r -> Task.succeed r
+                Http.Timeout ->
+                    Task.fail BadNetworkError
 
-      in
-        handleResponseError res' `Task.andThen` handleJsonDecoding
+                Http.NetworkError ->
+                    Task.fail BadNetworkError
 
-    handleError err =
-        Task.fail (BasicError err)
-
-  in
-    req `Task.onError` handleError `Task.andThen` handleResponse
+    in
+        req |> Task.onError handleError
 
 
 verbToString : Verb -> String
-verbToString verb = case verb of
-    Get -> "GET"
-    Post -> "POST"
-    Delete -> "DELETE"
+verbToString verb =
+    case verb of
+        Get ->
+            "GET"
+
+        Post ->
+            "POST"
+
+        Delete ->
+            "DELETE"
