@@ -4,9 +4,8 @@ import Json.Encode as Enc exposing (Value, null)
 import Json.Decode as Dec exposing (Decoder, field)
 import Task exposing (Task)
 import String
-import Char
-import Parser exposing (Parser)
 import Api exposing (..)
+import Regex
 
 
 --
@@ -73,16 +72,33 @@ descriptionPartsToString parts =
     in
         List.foldl fn "" parts
 
-
 descriptionStringToParts : String -> List DescriptionPart
 descriptionStringToParts str =
-    case Parser.parse partParser str of
-        Ok res ->
-            res
+    let
+        entriesRegex =
+            Regex.regex "@entries(:[a-zA-Z0-9]+)*"
 
-        Err _ ->
-            []
+        entryMatches =
+            Regex.find Regex.All entriesRegex str
 
+        toEntriesPart str =
+            str |> String.split ":" |> List.drop 1 |> EntriesPart
+
+        collapse = \m (lastIdx,out) ->
+            let
+                newIndex = m.index + String.length m.match
+                newParts = [MarkdownPart (String.slice lastIdx m.index str), toEntriesPart m.match]
+            in
+                (newIndex, out ++ newParts)
+
+        parts =
+            let
+                (lastIdx,out) = List.foldl collapse (0,[]) entryMatches
+            in
+                out ++ [ MarkdownPart (String.dropLeft lastIdx str) ]
+
+    in
+        parts
 
 descriptionPartsToEntryIds : List DescriptionPart -> List String
 descriptionPartsToEntryIds parts =
@@ -97,54 +113,6 @@ descriptionPartsToEntryIds parts =
                         out
     in
         List.foldl fn [] parts
-
-
-
--- parse a string into a list of DescriptionParts. A little messy but
--- does the trick (lack of do sugar shows here..)!
-
-
-partParser : Parser (List DescriptionPart)
-partParser =
-    let
-        entries =
-            let
-                toString =
-                    \charList -> List.foldr (\c s -> String.cons c s) "" charList
-
-                sep =
-                    Parser.symbol ':'
-
-                entryId =
-                    Parser.some (Parser.satisfy (\c -> Char.isUpper c || Char.isLower c || Char.isDigit c)) |> Parser.map toString
-
-                entryIds =
-                    Parser.separatedBy entryId sep
-
-                hasEntries =
-                    Parser.map EntriesPart (sep |> Parser.andThen (\_ -> entryIds))
-            in
-                Parser.token "@entries" |> Parser.andThen (\_ -> Parser.optional hasEntries (EntriesPart []))
-
-        loop str bits =
-            let
-                next =
-                    \s bit -> Parser.recursively (\() -> loop s bit)
-
-                foundEntries =
-                    entries |> Parser.andThen (\es -> next "" (bits ++ [ MarkdownPart str, es ]))
-
-                finishedSoReturnMarkdown =
-                    Parser.end |> Parser.map (\_ -> bits ++ [ MarkdownPart str ])
-
-                takeCharAndLoop =
-                    Parser.satisfy (always True) |> Parser.andThen (\c -> next (str ++ String.fromChar c) bits)
-            in
-                Parser.choice [ foundEntries, finishedSoReturnMarkdown, takeCharAndLoop ]
-    in
-        loop "" []
-
-
 
 --
 -- Set day:
