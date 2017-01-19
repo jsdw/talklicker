@@ -445,6 +445,7 @@ addDay _ input = do
             { dayId          = newId
             , dayTitle       = addDayTitle input
             , dayDescription = addDayDescription input
+            , dayCompleted   = addDayCompleted input
             , dayEntries     = entryIds
             , dayCreated     = currTime
             , dayModified    = currTime

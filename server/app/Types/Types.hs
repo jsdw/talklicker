@@ -96,6 +96,7 @@ data Day = Day
     , dayEntries     :: [Id]
     , dayCreated     :: Int
     , dayModified    :: Int
+    , dayCompleted   :: Bool
     } deriving (Eq, Show, Generic)
 
 instance ToJSON Day where toJSON = toPrefix "day"
@@ -171,6 +172,7 @@ instance FromJSON UserInput where parseJSON = fromPrefix "ui"
 data AddDayInput = AddDayInput
     { addDayTitle       :: String
     , addDayDescription :: String
+    , addDayCompleted   :: Bool
     , addDayEntries     :: [Id]
     } deriving (Show, Eq, Generic)
 

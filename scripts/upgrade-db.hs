@@ -1,9 +1,22 @@
 #!/usr/bin/env stack
--- stack --resolver lts-6.12 --install-ghc runghc --package lens-aeson --package lens
+{- stack
+   --resolver lts-6.12
+   --install-ghc runghc
+   --package base
+   --package bytestring
+   --package mtl
+   --package containers
+   --package aeson
+   --package lens-aeson
+   --package lens
+   --
+   -hide-all-packages
+-}
 
 {-# LANGUAGE ScopedTypeVariables, OverloadedStrings #-}
 
 import qualified Data.ByteString.Lazy as Bytes
+import qualified Data.ByteString as StrictBytes
 import qualified Data.Map as Map
 import qualified Control.Monad.State as State
 
@@ -28,6 +41,9 @@ upgraders = do
        |> set (key "days" . _Array . each . _Object . at "description") (Just $ String "")
        |> set (key "days" . _Array . each . _Object . at "created") (Just $ Number 0)
        |> set (key "days" . _Array . each . _Object . at "modified") (Just $ Number 0)
+
+    -- add a "completed" boolean to days denoting whether they are over or not.
+    2 ==> set (key "days" . _Array . each . _Object . at "completed") (Just $ Bool False)
 
     -- -- EXAMPLE: set "email" of each user to blank string and "subscribed" of each user to false
     -- 1 ==> set (key "users" . _Array . each . _Object . at "email") (Just $ String "")
@@ -64,8 +80,8 @@ main = do
 
     initialJson <- getArgs >>= \a -> case a of
         []     -> return initialState
-        ["-"]  -> Bytes.hGetContents stdin >>= return . decodeToJson
-        [file] -> Bytes.readFile file      >>= return . decodeToJson
+        ["-"]  -> StrictBytes.hGetContents stdin >>= return . decodeToJson . Bytes.fromStrict
+        [file] -> StrictBytes.readFile file      >>= return . decodeToJson . Bytes.fromStrict
         _      -> error "Exactly zero or one argument (json file to upgrade) expected"
 
     let Just initialVersion = preview (key "schemaVersion" . _Integral) initialJson <|> Just (-1)
