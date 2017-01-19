@@ -22,6 +22,7 @@ type alias Day =
     { id : String
     , title : String
     , description : List DescriptionPart
+    , completed : Bool
     , created : Int
     , modified : Int
     }
@@ -34,10 +35,11 @@ daysDecoder =
 
 dayDecoder : Decoder Day
 dayDecoder =
-    Dec.map5 Day
+    Dec.map6 Day
         (field "id" Dec.string)
         (field "title" Dec.string)
         (field "description" (Dec.map descriptionStringToParts Dec.string))
+        (field "completed" Dec.bool)
         (field "created" Dec.int)
         (field "modified" Dec.int)
 
@@ -149,6 +151,7 @@ type alias DayInput a =
         | id : String
         , title : String
         , description : List DescriptionPart
+        , completed : Bool
     }
 
 
@@ -162,6 +165,7 @@ type alias DayAddable a =
     { a
         | title : String
         , description : List DescriptionPart
+        , completed : Bool
     }
 
 
@@ -183,6 +187,7 @@ addDayEncoder day =
         Enc.object
             [ ( "title", Enc.string day.title )
             , ( "description", Enc.string description )
+            , ( "completed", Enc.bool day.completed)
             , ( "entries", Enc.list (List.map Enc.string entryIds) )
             ]
 

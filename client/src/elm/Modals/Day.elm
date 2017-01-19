@@ -26,6 +26,7 @@ type alias Model =
     , title : String
     , description : String
     , saving : Bool
+    , completed : Bool
     , error :
         Maybe DayError
         -- is our remove submodal shown?
@@ -40,6 +41,7 @@ model =
     , title = ""
     , description = ""
     , saving = False
+    , completed = False
     , error =
         Nothing
         -- is our remove submodal shown?
@@ -55,6 +57,7 @@ prepareForAdd model =
         , title = ""
         , description = ""
         , saving = False
+        , completed = False
         , error = Nothing
         , removing = False
     }
@@ -66,6 +69,7 @@ prepareForEdit day model =
         | id = day.id
         , title = day.title
         , description = Days.descriptionPartsToString day.description
+        , completed = day.completed
         , saving = False
         , error = Nothing
         , removing = False
