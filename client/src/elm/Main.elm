@@ -1248,7 +1248,7 @@ completeDayModal day model =
             else "Complete"
         opts =
             { title = "Complete Day"
-            , icon = "lock"
+            , icon = "done"
             , message = msg
             , onPerform = All [ CloseTopModal, DoCompleteDay day ]
             , performText = btnMsg
