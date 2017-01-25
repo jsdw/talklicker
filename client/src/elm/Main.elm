@@ -188,6 +188,9 @@ type Msg
     | ShowAddDayModal
     | ShowEditDayModal Day
     | DayModal DayModal.Msg
+    | ShowDayCompleteModal Day
+    | DoCompleteDay Day
+    | DoneCompleteDay Day
       -- perform several actions at once
     | All (List Msg)
     | CloseTopModal
@@ -206,7 +209,7 @@ update msg model =
 
         UpdateCoreDetails core ->
             showSetPasswordIfNeeded
-                (setEntries core.entries { model | loading = False, user = core.currentUser, users = core.users, days = core.days })
+                (setEntries core.entries { model | loading = False, user = core.currentUser, users = core.users, days = List.reverse core.days })
                 ! []
 
         -- [ perform ApiError UpdateCoreDetails <| Process.sleep (30 * Time.second) `Task.andThen` \_ -> getEverything ]
@@ -306,6 +309,15 @@ update msg model =
 
         DayModal msg ->
             handleDayUpdate msg model
+
+        ShowDayCompleteModal day ->
+            showModal (completeDayModal day) model ! []
+
+        DoCompleteDay day ->
+            model ! [ doCompleteDay day ]
+
+        DoneCompleteDay day ->
+            closeTopModal { model | days = List.map (\d -> if d.id == day.id then day else d) model.days } ! []
 
         -- perform several actions eg cloing modal and logging in.
         -- done one after the other.
@@ -724,8 +736,13 @@ resetLoginState model =
         , loggingIn = False
     }
 
-
-
+doCompleteDay : Day -> Cmd Msg
+doCompleteDay day =
+    let
+        newDay =
+            { day | completed = not day.completed }
+    in
+        perform (always Noop) (always <| DoneCompleteDay newDay) (Days.set newDay)
 --
 -- View
 --
@@ -753,10 +770,15 @@ view model =
             details.userType == Admin
 
         isDays =
-            model.days /= []
+            daysToRender /= []
 
         isEntries =
             model.entryIds /= []
+
+        daysToRender =
+            if model.isAdminMode
+                then model.days
+                else List.filter (not << .completed) model.days
 
         -- entries tab with list of entries
         entriesTab =
@@ -788,7 +810,7 @@ view model =
                         [ isDays
                             ? div [ class "days" ]
                                 [ h2 [ class "days-title" ] [ text "Days" ]
-                                , div [ class "days-inner" ] (List.map (renderDay model) model.days)
+                                , div [ class "days-inner" ] (List.map (renderDay model) daysToRender)
                                 ]
                         , div [ class "entries" ]
                             [ isDays
@@ -984,18 +1006,42 @@ renderDay model d =
                     markdown [ class "markdown" ] str
 
                 Days.EntriesPart entryIds ->
-                    Dnd.view { enabled = model.isAdminMode, listId = InDay d.id idx } model.entriesDnd EntriesDnd <|
+                    Dnd.view { enabled = model.isAdminMode && not d.completed, listId = InDay d.id idx } model.entriesDnd EntriesDnd <|
                         List.foldr (tryRenderDndEntry idx) [] entryIds
-    in
-        div [ class "day" ]
-            [ div [ class "title" ]
-                [ if model.isAdminMode then
-                    a [ class "text link", onClick (ShowEditDayModal d) ] [ text d.title ]
-                  else
-                    div [ class "text" ] [ text d.title ]
+
+        completeDayButton =
+            Button.render Mdl
+                [ 5, 5 ]
+                model.mdl
+                [ Button.raised
+                , Button.colored
+                , Options.onClick (ShowDayCompleteModal d)
+                , cs "complete-day-button"
                 ]
-            , div [ class "description" ]
-                (List.indexedMap renderPart d.description)
+                [ text
+                    (if d.completed then
+                        "Uncomplete"
+                    else
+                        "Complete"
+                    )
+                ]
+
+        dayClasses =
+            "day" ++ if d.completed then " completed" else ""
+
+    in
+        div [ class dayClasses ]
+            [ div [ class "title" ]
+                [ if model.isAdminMode && not d.completed
+                    then a [ class "text link", onClick (ShowEditDayModal d) ] [ text d.title ]
+                    else div [ class "text" ] [ text d.title ]
+                , if model.isAdminMode
+                    then completeDayButton
+                    else text ""
+                ]
+            , if not d.completed
+                then div [ class "description" ] (List.indexedMap renderPart d.description)
+                else text ""
             ]
 
 
@@ -1190,6 +1236,30 @@ logoutModal model =
     in
         Modals.choice opts model
 
+
+completeDayModal : Day -> Model -> Html Msg
+completeDayModal day model =
+    let
+        msg = if day.completed
+            then "Are you sure you no longer want to mark this day as complete?"
+            else "Are you sure you want to mark this day as complete?"
+        btnMsg = if day.completed
+            then "Uncomplete"
+            else "Complete"
+        opts =
+            { title = "Complete Day"
+            , icon = "lock"
+            , message = msg
+            , onPerform = All [ CloseTopModal, DoCompleteDay day ]
+            , performText = btnMsg
+            , onCancel = CloseTopModal
+            , cancelText = "Cancel"
+            , hidePerform = False
+            , hideCancel = False
+            , mdl = Mdl
+            }
+    in
+        Modals.choice opts model
 
 markdown : List (Attribute Msg) -> String -> Html Msg
 markdown attrs txt =

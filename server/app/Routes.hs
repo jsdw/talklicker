@@ -402,6 +402,7 @@ setDay _ dId input = do
         update day = day
             & dayTitleL       ~? diTitle input
             & dayDescriptionL ~? diDescription input
+            & dayCompletedL   ~? diCompleted input
             & dayEntriesL     ~? mEntryIds
             & dayModifiedL    .~ currTime
 
@@ -445,10 +446,10 @@ addDay _ input = do
             { dayId          = newId
             , dayTitle       = addDayTitle input
             , dayDescription = addDayDescription input
-            , dayCompleted   = addDayCompleted input
             , dayEntries     = entryIds
             , dayCreated     = currTime
             , dayModified    = currTime
+            , dayCompleted   = False
             }
 
     case mItem of

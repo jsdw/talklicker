@@ -25,39 +25,21 @@ body, html {
     //justify-content: center;
     position: relative;
     color: #000000;
-    margin-bottom: 1.2em;
     font-size: 2em;
     font-weight: 400;
     line-height: 1.2em;
-
-	&::after {
-		content: '';
-		position: absolute;
-		bottom: -150px;
-
-		// oddly, on chrome, this lay behind things yet intefered with DnD. this stops that:
-		z-index: -1;
-		pointer-events: none;
-
-		right: 0px;
-		width: 100%;
-		box-sizing: border-box;
-		border: 75px solid transparent;
-		border-left-width: 100px;
-		border-right-width: 100px;
-	}
+	font-size: 3em;
 }
 
 @mixin bigPinkTitle {
 	@include bigTitle;
-    background-color: #f6cfff;
-	&::after { border-top-color: #d39ee0; }
+	font-family: cursive;
+	font-weight: bold;
 }
 
 @mixin bigBlueTitle {
 	@include bigTitle;
-    background-color: #d2cfff;
-	&::after { border-top-color: #9c97da; }
+	font-family: 'Sigmar One', sans-serif;
 }
 
 @mixin entryUserTitle {
@@ -96,11 +78,24 @@ body, html {
 	border-top: 1px solid rgb(248, 248, 248);
 	border-left: 8px solid #ef00ff;
 
+	&.completed {
+		background-color: #e8e8e8;
+		// quick hack to make entries within completed days non editable:
+		.entry {
+			pointer-events: none;
+			.text.link {
+				color: black !important;
+				text-decoration: none !important;
+			}
+		}
+	}
+
 	> .title {
 		@include entryUserTitle;
 		font-size: 2em;
 		font-weight: 500;
 		margin-bottom: 0em; // because markdown desc will have margin-top 0.5em
+		justify-content: space-between //move "completed" button to the right
 	}
 }
 
@@ -336,12 +331,13 @@ body > .content {
 					bottom: 0;
 					right: 0;
 					overflow-y: auto;
+					padding-top: 1em; // to compensate for the fadey bit
 
 					> .days {
 						@include flexColumn;
 						align-items: center;
 						flex-shrink: 0;
-						margin-top:1.5em;
+						margin-top:0.5em;
 
 						> .days-title {
 							margin-top:0px;

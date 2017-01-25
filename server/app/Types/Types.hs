@@ -172,7 +172,6 @@ instance FromJSON UserInput where parseJSON = fromPrefix "ui"
 data AddDayInput = AddDayInput
     { addDayTitle       :: String
     , addDayDescription :: String
-    , addDayCompleted   :: Bool
     , addDayEntries     :: [Id]
     } deriving (Show, Eq, Generic)
 
@@ -182,6 +181,7 @@ data DayInput = DayInput
     { diTitle       :: Maybe String
     , diDescription :: Maybe String
     , diEntries     :: Maybe [Id]
+    , diCompleted   :: Maybe Bool
     } deriving (Show, Eq, Generic)
 
 instance FromJSON DayInput where parseJSON = fromPrefix "di"
