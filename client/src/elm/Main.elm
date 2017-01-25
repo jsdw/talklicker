@@ -815,7 +815,7 @@ view model =
                         , div [ class "entries" ]
                             [ isDays
                                 ? h2 [ class "entries-title" ] [ text "Entries" ]
-                            , if not isEntries then
+                            , if not isEntries && not model.loading then
                                 div [ class "no-entries" ] [ text "No entries have been added yet." ]
                               else
                                 Dnd.view { enabled = isLoggedIn, listId = InEntriesList } model.entriesDnd EntriesDnd <|
