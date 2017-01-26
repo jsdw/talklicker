@@ -63,6 +63,19 @@ body, html {
 
 }
 
+@mixin paperBackground($opacity: 0.3) {
+	&::before {
+		content: '';
+		background-image: url(static/entry-bg-pattern.jpg);
+		position: absolute;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		left: 0;
+		opacity: $opacity;
+	}
+}
+
 @mixin day {
 	position: relative;
 	flex-shrink: 0;
@@ -74,12 +87,14 @@ body, html {
 
 	background-color: white;
 	border-bottom: 1px solid rgb(209, 209, 209);
-	border-right: 1px solid rgb(248, 248, 248);
-	border-top: 1px solid rgb(248, 248, 248);
+	border-right: 1px solid rgb(236, 236, 236);
+	border-top: 1px solid rgb(246, 246, 246);
 	border-left: 8px solid #ef00ff;
 
+	@include paperBackground(0.6);
+
 	&.completed {
-		background-color: #e8e8e8;
+		background-color: #848484;
 		// quick hack to make entries within completed days non editable:
 		.entry {
 			pointer-events: none;
@@ -92,10 +107,15 @@ body, html {
 
 	> .title {
 		@include entryUserTitle;
+		position: relative;
 		font-size: 2em;
 		font-weight: 500;
 		margin-bottom: 0em; // because markdown desc will have margin-top 0.5em
 		justify-content: space-between //move "completed" button to the right
+	}
+
+	> .description {
+		position: relative;
 	}
 }
 
@@ -104,14 +124,16 @@ body, html {
 	flex-shrink: 0;
 
 	width: 660px;
-	margin-bottom: 5px;
+	margin-bottom: 7px;
 	padding: 10px;
 	padding: 0.5em 1em;
 
 	background-color: white;
 	border-bottom: 1px solid rgb(209, 209, 209);
-	border-right: 1px solid rgb(248, 248, 248);
-	border-top: 1px solid rgb(248, 248, 248);
+	border-right: 1px solid rgb(236, 236, 236);
+	border-top: 1px solid rgb(246, 246, 246);
+
+	@include paperBackground;
 
 	&.entry-talk {
 		border-left: 8px solid #4bb1c1;
@@ -122,15 +144,18 @@ body, html {
 
 	> .title {
 		@include entryUserTitle;
+		position: relative;
 		margin-bottom: 0em; // because markdown desc will have margin-top 0.5em
 	}
 
 	> .description {
+		position: relative;
 		//avoid hitting duration:
 		width: calc(100% - 35px);
 	}
 
 	> .user {
+		position: relative;
 		font-style: italic;
 		color: rgb(130, 130, 130);
 		font-size:90%;
@@ -143,20 +168,75 @@ body, html {
 
 		position: absolute;
 		bottom: 10px;
-		right: 10px;
-
+		right: -1px;
+		padding-right: 10px;
+		padding-left: 2px;
+		border-right: 1px solid #bdbdbd;
+		border-bottom: 1px solid gainsboro;
 		display: flex;
 		align-self: flex-end;
-
-		border-radius: 15px;
 		width: 32px;
 		height: 32px;
-
-		background-color: #e4e4e4;
-		color: #323133;
-
+		background-color: #6671c1;
+		color: #ffffff;
 		align-items: center;
 		justify-content: center;
+		font-weight: bold;
+
+	}
+}
+
+@mixin user {
+
+	width: 500px;
+	margin-bottom: 7px;
+	padding: 10px;
+	padding: 0.5em 1em;
+	position: relative;
+	flex-shrink: 0;
+
+	@include paperBackground;
+
+	&:first-child {
+		margin-top: 1.5em;
+	}
+
+	&.user-admin {
+		border-left: 8px solid $adminOrange;
+	}
+	&.user-normal {
+		border-left: 8px solid #8c9ca5
+	}
+
+	border-bottom: 1px solid rgb(209, 209, 209);
+	border-right: 1px solid rgb(248, 248, 248);
+	border-top: 1px solid rgb(248, 248, 248);
+
+	> .title {
+		@include entryUserTitle;
+	}
+
+	> .type {
+		font-style: italic;
+		color: rgb(130, 130, 130);
+		font-size:90%;
+	}
+
+	> .is-new {
+		position: absolute;
+		bottom: 5px;
+		right: 5px;
+		height: 32px;
+		width: 32px;
+		font-size:0.75em;
+		background-color: #ffd18c;
+		border-radius: 100px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: #5a3c00;
+		font-weight: bold;
+		border: 1px solid #ffbc00;
 	}
 }
 
@@ -189,10 +269,10 @@ body > .content {
 		justify-content: space-between;
 		position: relative;
 		color: white;
-		background-color: #6d6fab;
+		background-color: #6671c1;
 		padding: 0px 1em;
 
-		border-bottom: 2px solid purple;
+		border-bottom: 2px solid #455db5;
 		&.is-admin-mode {
 			border-bottom: 6px solid $adminOrange;
 		}
@@ -230,17 +310,20 @@ body > .content {
 			}
 
 			> .admin-mode {
+
+				$col: #414379;
+
 				cursor: pointer;
 				align-self: stretch;
 				width:110px; //rather than padding, so it wont change if font goes bold
 				display: flex;
 				align-items: center;
 				justify-content: center;
-				background-color: purple;
+				background-color: $col;
 				transition: background-color 0.2s ease-in-out;
 
 				&:hover {
-					background-color: lighten(purple, 5%);
+					background-color: lighten($col, 5%);
 				}
 				&.enabled {
 					background-color: $adminOrange;
@@ -400,55 +483,7 @@ body > .content {
 					align-items: center;
 
 					> .user {
-
-						width: 500px;
-						margin-bottom: 5px;
-						padding: 10px;
-						padding: 0.5em 1em;
-						position: relative;
-						flex-shrink: 0;
-
-						&:first-child {
-							margin-top: 1.5em;
-						}
-
-						&.user-admin {
-							border-left: 8px solid $adminOrange;
-						}
-						&.user-normal {
-							border-left: 8px solid #8c9ca5
-						}
-
-						border-bottom: 1px solid rgb(209, 209, 209);
-						border-right: 1px solid rgb(248, 248, 248);
-						border-top: 1px solid rgb(248, 248, 248);
-
-						> .title {
-							@include entryUserTitle;
-						}
-
-						> .type {
-							font-style: italic;
-							color: rgb(130, 130, 130);
-							font-size:90%;
-						}
-
-						> .is-new {
-							position: absolute;
-							bottom: 5px;
-							right: 5px;
-							height: 32px;
-							width: 32px;
-							font-size:0.75em;
-							background-color: #ffd18c;
-							border-radius: 100px;
-							display: flex;
-							align-items: center;
-							justify-content: center;
-							color: #5a3c00;
-							font-weight: bold;
-							border: 1px solid #ffbc00;
-						}
+						@include user;
 					}
 				}
 			}
