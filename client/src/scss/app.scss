@@ -4,6 +4,7 @@
 @import "markdown";
 
 $adminOrange: #ffb100;
+$entrySpacing: 7px;
 
 body, html {
 	margin: 0;
@@ -81,7 +82,7 @@ body, html {
 	flex-shrink: 0;
 
 	width: 700px;
-	margin-bottom: 5px;
+	margin-bottom: $entrySpacing;
 	padding: 10px;
 	padding: 0.5em 1em;
 
@@ -124,7 +125,7 @@ body, html {
 	flex-shrink: 0;
 
 	width: 660px;
-	margin-bottom: 7px;
+	margin-bottom: $entrySpacing;
 	padding: 10px;
 	padding: 0.5em 1em;
 
@@ -189,7 +190,7 @@ body, html {
 @mixin user {
 
 	width: 500px;
-	margin-bottom: 7px;
+	margin-bottom: $entrySpacing;
 	padding: 10px;
 	padding: 0.5em 1em;
 	position: relative;

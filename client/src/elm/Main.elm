@@ -611,7 +611,7 @@ handleDayUpdate msg model =
         actedModel =
             case act of
                 Just (DayModal.Added day) ->
-                    closeTopModal { model | days = model.days ++ [ day ] }
+                    closeTopModal { model | days = day :: model.days }
 
                 Just (DayModal.Updated day) ->
                     closeTopModal
