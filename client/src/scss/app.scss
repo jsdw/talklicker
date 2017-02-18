@@ -214,10 +214,16 @@ body, html {
 	border-top: 1px solid rgb(248, 248, 248);
 
 	> .title {
+		position: relative;
 		@include entryUserTitle;
 	}
 
+	> .name {
+		position: relative;
+	}
+
 	> .type {
+		position: relative;
 		font-style: italic;
 		color: rgb(130, 130, 130);
 		font-size:90%;
