@@ -118,6 +118,9 @@ update msg (Model model) =
             { model | dragPosition = mDragPos } !! Nothing
 
         DragMove pos ->
+          (if model.listId == Nothing then
+            model
+          else
             { model
                 | currentXY = pos
                 , dragInProgress =
@@ -125,7 +128,7 @@ update msg (Model model) =
                         True
                     else
                         exceedsThreshold model.startXY pos
-            }
+            })
                 !! Nothing
 
         DragComplete ->
